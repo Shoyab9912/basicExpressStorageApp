@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "node:path";
-import { readdir, stat, rename, rm } from "node:fs/promises";
+import { readdir, stat, rename, rm, mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 
 const app = express();
@@ -13,7 +13,7 @@ app.get("/directory/*filename", handler);
 
 async function handler(req, res) {
   try {
-    
+
     const folder = Array.isArray(req.params.filename) ? req.params.filename.join('/') : ""
     const dirPath = path.join("./storage", folder);
 
@@ -34,8 +34,24 @@ async function handler(req, res) {
   }
 }
 
+app.post("/directory/*dirname", async (req, res) => {
+  const dirName = req.params.dirname.join('/');
+  const filePath = path.join('storage', dirName)
+  try {
+    await mkdir(filePath)
+    return res.status(200).json({
+      message: "successfuly folder created"
+    })
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message || "sever side error"
+    })
+  }
+})
+
+
 app.get("/files/*filename", (req, res) => {
-  const  filename  = Array.isArray(req.params.filename) ? req.params.filename.join('/') : req.params.filename;
+  const filename = Array.isArray(req.params.filename) ? req.params.filename.join('/') : req.params.filename;
   //  console.log(req.params)
   if (req.query.action === "download") {
     res.setHeader("Content-Disposition", "attachment");
@@ -43,7 +59,7 @@ app.get("/files/*filename", (req, res) => {
 
   const filePath = path.join(import.meta.dirname, "storage", filename);
 
-  
+
   return res.sendFile(filePath, (err) => {
     if (err) {
       return res.status(404).json({
@@ -68,7 +84,7 @@ app.post("/files/*filename", (req, res) => {
       });
     });
 
-    
+
     writeStream.on("error", (err) => {
       return res.status(500).json({
         message: err.message || "Upload failed",
@@ -89,7 +105,7 @@ app.post("/files/*filename", (req, res) => {
 
 app.patch("/files/*filename", async (req, res) => {
   try {
-    const  filename  = req.params.filename.join("/")
+    const filename = req.params.filename.join("/")
     const { newFilename } = req.body;
     if (!newFilename) {
       return res.status(400).json({
@@ -115,7 +131,7 @@ app.patch("/files/*filename", async (req, res) => {
 app.delete("/files/*filename", async (req, res) => {
   try {
     const filePath = path.join("./storage", req.params.filename.join('/'));
-     
+
     await rm(filePath, { recursive: true });
 
     return res.status(200).json({
