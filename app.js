@@ -11,11 +11,22 @@ app.use(express.json());
 app.get("/directory", handler);
 app.get("/directory/*filename", handler);
 
+function safeStoragePath(...parts) {
+  const base = path.resolve(import.meta.dirname, "storage")
+  const target = path.resolve(base, ...parts)
+  if (base !== target && !target.startsWith(base + path.sep)) {
+    throw new Error("invalid path")
+  }
+
+  return target
+}
+
+
 async function handler(req, res) {
   try {
 
-    const folder = Array.isArray(req.params.filename) ? req.params.filename.join('/') : ""
-    const dirPath = path.join("./storage", folder);
+    
+    const dirPath = safeStoragePath(...(req.params.filename ?? []))
 
     const lists = await readdir(dirPath);
 
@@ -35,8 +46,9 @@ async function handler(req, res) {
 }
 
 app.post("/directory/*dirname", async (req, res) => {
-  const dirName = req.params.dirname.join('/');
-  const filePath = path.join('storage', dirName)
+  const parts = req.params.dirname ?? [];
+  const filePath = safeStoragePath(...parts);
+
   try {
     await mkdir(filePath)
     return res.status(200).json({
@@ -51,13 +63,11 @@ app.post("/directory/*dirname", async (req, res) => {
 
 
 app.get("/files/*filename", (req, res) => {
-  const filename = Array.isArray(req.params.filename) ? req.params.filename.join('/') : req.params.filename;
-  //  console.log(req.params)
+  const filePath = safeStoragePath(...req.params.filename)
+
   if (req.query.action === "download") {
     res.setHeader("Content-Disposition", "attachment");
   }
-
-  const filePath = path.join(import.meta.dirname, "storage", filename);
 
 
   return res.sendFile(filePath, (err) => {
@@ -70,10 +80,9 @@ app.get("/files/*filename", (req, res) => {
 });
 
 app.post("/files/*filename", (req, res) => {
-  const filename = req.params.filename.join('/')
 
   try {
-    const filePath = path.join("./storage", filename);
+    const filePath = safeStoragePath(...req.params.filename)
     const writeStream = createWriteStream(filePath);
 
     req.pipe(writeStream);
@@ -105,18 +114,10 @@ app.post("/files/*filename", (req, res) => {
 
 app.patch("/files/*filename", async (req, res) => {
   try {
-    const filename = req.params.filename.join("/")
-    const { newFilename } = req.body;
-    if (!newFilename) {
-      return res.status(400).json({
-        message: "newFilename is required",
-      });
-    }
+    const filename = safeStoragePath(...req.params.filename)
+    const newFilename = safeStoragePath(...req.body.newFilename.split("/"))
 
-    await rename(
-      path.join("./storage", filename),
-      path.join("./storage", newFilename)
-    );
+    await rename(filename, newFilename)
 
     return res.status(200).json({
       message: "file renamed successfully",
@@ -130,7 +131,7 @@ app.patch("/files/*filename", async (req, res) => {
 
 app.delete("/files/*filename", async (req, res) => {
   try {
-    const filePath = path.join("./storage", req.params.filename.join('/'));
+    const filePath = safeStoragePath(...req.params.filename)
 
     await rm(filePath, { recursive: true });
 
