@@ -9,11 +9,12 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/directory", handler);
-app.get("/directory/:filename", handler);
+app.get("/directory/*filename", handler);
 
 async function handler(req, res) {
   try {
-    const folder = req.params.filename ?? "";
+    
+    const folder = Array.isArray(req.params.filename) ? req.params.filename.join('/') : ""
     const dirPath = path.join("./storage", folder);
 
     const lists = await readdir(dirPath);
@@ -33,16 +34,16 @@ async function handler(req, res) {
   }
 }
 
-app.get("/files/:filename", (req, res) => {
-  const { filename } = req.params;
-
+app.get("/files/*filename", (req, res) => {
+  const  filename  = Array.isArray(req.params.filename) ? req.params.filename.join('/') : req.params.filename;
+  //  console.log(req.params)
   if (req.query.action === "download") {
     res.setHeader("Content-Disposition", "attachment");
   }
 
   const filePath = path.join(import.meta.dirname, "storage", filename);
 
-  // ✅ This is the correct way to handle sendFile errors
+  
   return res.sendFile(filePath, (err) => {
     if (err) {
       return res.status(404).json({
@@ -52,8 +53,8 @@ app.get("/files/:filename", (req, res) => {
   });
 });
 
-app.post("/files/:filename", (req, res) => {
-  const { filename } = req.params;
+app.post("/files/*filename", (req, res) => {
+  const filename = req.params.filename.join('/')
 
   try {
     const filePath = path.join("./storage", filename);
@@ -86,11 +87,10 @@ app.post("/files/:filename", (req, res) => {
   }
 });
 
-app.patch("/files/:filename", async (req, res) => {
+app.patch("/files/*filename", async (req, res) => {
   try {
-    const { filename } = req.params;
+    const  filename  = req.params.filename.join("/")
     const { newFilename } = req.body;
-
     if (!newFilename) {
       return res.status(400).json({
         message: "newFilename is required",
@@ -112,11 +112,11 @@ app.patch("/files/:filename", async (req, res) => {
   }
 });
 
-app.delete("/files/:filename", async (req, res) => {
+app.delete("/files/*filename", async (req, res) => {
   try {
-    const filePath = path.join("./storage", req.params.filename);
-
-    await rm(filePath, { force: true });
+    const filePath = path.join("./storage", req.params.filename.join('/'));
+     
+    await rm(filePath, { recursive: true });
 
     return res.status(200).json({
       message: "successfully removed",
