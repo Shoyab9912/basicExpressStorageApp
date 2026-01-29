@@ -30,13 +30,13 @@ async function handler(req, res) {
     }
 
     const files = dirData.files.map(fileId => fileData.find(fs => fs.id === fileId)).filter(Boolean)
-    console.log(files)
+  
     const directories = dirData.directories.map(dirId => directoryData.find(dir => dir.id === dirId)).filter(Boolean).map(({ id, name }) => ({ id, name }))
-    console.log(directories)
-    return res.status(201).json({ ...dirData, files, directories })
+
+    return res.status(200).json({ ...dirData, files, directories })
   } catch (err) {
     return res.status(404).json({
-      message: err.message || "op failed"
+      message:  "No files or directory exists"
     })
   }
 }
@@ -44,10 +44,11 @@ async function handler(req, res) {
 router.post("/", handlePost);
 router.post('/:parentDirId', handlePost)
 
-async function handlePost(req, res) {
+async function handlePost(req, res,next) {
   const parentDirId = req.params.parentDirId || directoryData[0].id;
-  const dirName = req.headers.dirname
+  const dirName = req.headers.dirname || "newFolder"
   const parentDir = directoryData.find(dir => dir.id === parentDirId)
+  if(!parentDir) return res.status(404).json([message:"There is no directory exists"])
   const id = crypto.randomUUID()
   parentDir.directories.push(id)
   directoryData.push({
@@ -60,20 +61,19 @@ async function handlePost(req, res) {
 
   try {
     await writeFile("./directoriesDB.json", JSON.stringify(directoryData))
-    return res.status(200).json({
+    return res.status(201).json({
       message: "successfully folder created",
     });
   } catch (err) {
-    return res.status(500).json({
-      message: err.message || "server side error",
-    });
+       next(err)
   }
 }
 
-router.patch('/:dirId', async (req, res) => {
+router.patch('/:dirId', async (req, res,next) => {
   const { dirId } = req.params;
   const { newDirName } = req.body;
   const dirData = directoryData.find(dir => dir.id === dirId)
+  if(!dirData) return res.status(404).json({message:"there is no directory  exists"})
   dirData.name = newDirName || dirData.name
   try {
     await writeFile('./directoriesDB.json', JSON.stringify(directoryData))
@@ -81,15 +81,13 @@ router.patch('/:dirId', async (req, res) => {
       message: "dir rename successfull"
     })
   } catch (err) {
-    return res.status(404).json({
-      message: err.message || "patch update failed"
-    })
+     next(err)
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res,next) => {
   try {
-    console.log(req.params)
+    
     const { id } = req.params;
     const dirIndex = directoryData.findIndex((dir) => dir.id === id)
     if (dirIndex === -1) {
@@ -127,9 +125,7 @@ router.delete('/:id', async (req, res) => {
       message: "successfully removed",
     });
   } catch (err) {
-    return res.status(404).json({
-      message: err.message || "not removerd"
-    })
+    next(err)
   }
 
 
