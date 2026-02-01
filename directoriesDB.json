@@ -2,10 +2,14 @@
     {
         "id": "123",
         "parentDirId": "root",
-        "name": "null",
+        "dirName": "null",
         "files": [
-            "b7492071-a780-4d77-b072-ca5356fc16c6"
+            "b7492071-a780-4d77-b072-ca5356fc16c6",
+            "8a989786-ab6e-4127-9c8a-d5e36e801e63",
+            "c5a504d9-b372-487c-acc9-e1ba918fd7d0"
         ],
-        "directories": []
+        "directories": [
+            "09ef9a94-26cd-4917-a451-4eeadfdf6056"
+        ]
     }
 ]

@@ -1,5 +1,5 @@
 import express from "express";
-import path from "node:path";
+
 import { writeFile, rm } from "node:fs/promises";
 
 import directoryData from "../directoriesDB.json" with {type: "json"}
@@ -30,13 +30,13 @@ async function handler(req, res) {
     }
 
     const files = dirData.files.map(fileId => fileData.find(fs => fs.id === fileId)).filter(Boolean)
-  
+
     const directories = dirData.directories.map(dirId => directoryData.find(dir => dir.id === dirId)).filter(Boolean).map(({ id, name }) => ({ id, name }))
 
     return res.status(200).json({ ...dirData, files, directories })
   } catch (err) {
     return res.status(404).json({
-      message:  "No files or directory exists"
+      message: "No files or directory exists"
     })
   }
 }
@@ -44,11 +44,11 @@ async function handler(req, res) {
 router.post("/", handlePost);
 router.post('/:parentDirId', handlePost)
 
-async function handlePost(req, res,next) {
+async function handlePost(req, res, next) {
   const parentDirId = req.params.parentDirId || directoryData[0].id;
   const dirName = req.headers.dirname || "newFolder"
   const parentDir = directoryData.find(dir => dir.id === parentDirId)
-  if(!parentDir) return res.status(404).json([message:"There is no directory exists"])
+  if (!parentDir) return res.status(404).json({ message: "There is no directory exists" })
   const id = crypto.randomUUID()
   parentDir.directories.push(id)
   directoryData.push({
@@ -65,15 +65,15 @@ async function handlePost(req, res,next) {
       message: "successfully folder created",
     });
   } catch (err) {
-       next(err)
+    next(err)
   }
 }
 
-router.patch('/:dirId', async (req, res,next) => {
+router.patch('/:dirId', async (req, res, next) => {
   const { dirId } = req.params;
   const { newDirName } = req.body;
   const dirData = directoryData.find(dir => dir.id === dirId)
-  if(!dirData) return res.status(404).json({message:"there is no directory  exists"})
+  if (!dirData) return res.status(404).json({ message: "there is no directory  exists" })
   dirData.name = newDirName || dirData.name
   try {
     await writeFile('./directoriesDB.json', JSON.stringify(directoryData))
@@ -81,13 +81,80 @@ router.patch('/:dirId', async (req, res,next) => {
       message: "dir rename successfull"
     })
   } catch (err) {
-     next(err)
+    next(err)
   }
 })
 
-router.delete('/:id', async (req, res,next) => {
+
+router.delete("/:id", async (req, res, next) => {
   try {
+    const { id } = req.params;
+    const dirData = directoryData.some(dir => dir.id === id)
+
+    if (!dirData) {
+      return res.status(404).json({ message: "no dir exists" })
+    }
+
+    await deleteDirRecursively(id, directoryData, fileData);
+
+    await writeFile("./fileDB.json", JSON.stringify(fileData))
+    await writeFile('./directoriesDB.json', JSON.stringify(directoryData))
+
+
+    return res.status(200).json({
+      message: "successfully removed",
+    });
+
+
+  } catch (error) {
+    next(error)
+  }
+})
+
+
+async function deleteDirRecursively(dirId, directoryData, fileData) {
+
+  const dirIndex = directoryData.findIndex(dir => dir.id === dirId);
+
+  if (dirIndex === -1) return;
+
+  const dirData = directoryData[dirIndex];
+
+  for (let childDirId of dirData.directories || []) {
+    await deleteDirRecursively(childDirId, directoryData, fileData)
+  }
+
+
+
+  for (let fileId of dirData.files || []) {
+
+    let fileIndex = fileData.findIndex(f => f.id === fileId);
+
+    if(fileIndex !== -1) continue;
+      let data = fileData[fileIndex];
+      if (!data) continue;
+      await rm(`./storage/${data.id}${data.extension}`,{force:true});
+      fileData.splice(fileIndex, 1)
     
+  }
+
+  const parentDir = directoryData.find(dir => dir.id === dirData.parentDirId)
+  if (parentDir) {
+    parentDir.directories = (parentDir.directories || []).filter(childId => childId !== dirId)
+  }
+
+  const index = directoryData.findIndex(dir => dir.id === dirId)
+  if (index !== -1) {
+    directoryData.splice(index, 1)
+  }
+
+
+}
+
+/*
+router.delete('/:id', async (req, res, next) => {
+  try {
+
     const { id } = req.params;
     const dirIndex = directoryData.findIndex((dir) => dir.id === id)
     if (dirIndex === -1) {
@@ -112,7 +179,7 @@ router.delete('/:id', async (req, res,next) => {
     }
     directoryData.splice(dirIndex, 1)
     const parentDir = directoryData.find(dir => dir.id === dirData.parentDirId)
-    
+
     if (parentDir) {
       parentDir.directories = parentDir.directories.filter(dirId => dirId !== id)
     }
@@ -130,5 +197,5 @@ router.delete('/:id', async (req, res,next) => {
 
 
 })
-
+*/
 export default router;  

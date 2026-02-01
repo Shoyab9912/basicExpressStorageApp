@@ -29,10 +29,8 @@ router.get("/:id", (req, res) => {
   if (req.query.action === "download") {
     res.set("Content-Disposition", `attachment; filename = ${file.name}`);
   }
-  let parts = [];
-  if (typeof id === "string") {
-    parts = id.split()
-  }
+
+  const parts = id.split()
 
   const filePath = safeStoragePath(req, ...parts)
   return res.sendFile(`${filePath}${file.extension}`, (err) => {
@@ -123,11 +121,8 @@ router.delete("/:id", async (req, res, next) => {
   const findData = fileData[fileIndex]
   const dirData = directoryData.find(dirId => dirId.id === findData.parentDirId)
   if (!dirData) return res.status(404).json({ message: "no directory exists" })
-  let parts = [];
-  if (typeof id === "string") {
-    parts = id.split()
-  }
-
+ 
+  const parts = id.split()
   const filePath = safeStoragePath(req, ...parts)
   try {
     await rm(`${filePath}${findData.extension}`, { recursive: true });
