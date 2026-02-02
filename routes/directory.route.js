@@ -5,7 +5,7 @@ import { writeFile, rm } from "node:fs/promises";
 import directoryData from "../directoriesDB.json" with {type: "json"}
 
 import fileData from "../fileDB.json" with {type: "json"}
-
+import crypto from "node:crypto"
 
 const router = express.Router();
 
@@ -16,18 +16,19 @@ router.get("/:id", handler);
 
 async function handler(req, res) {
   try {
-    const { id } = req.params;
-    let dirData;
-
-    if (!id) {
-      dirData = directoryData[0]
-    } else {
-      dirData = directoryData.find(dirId => dirId.id === id)
+    const user = req.user;
+  
+    if(!user) {
+      return res.status(404).json({message:"no user found"})
     }
-
+    let id = req.params.id ?? user.rootDirId;
+    //  console.log(id)
+    const dirData = directoryData.find(dir => dir.id === id );
+    
     if (!dirData) {
       return res.status(404).json({ message: "three are no directories" })
     }
+
 
     const files = dirData.files.map(fileId => fileData.find(fs => fs.id === fileId)).filter(Boolean)
 
@@ -45,7 +46,9 @@ router.post("/", handlePost);
 router.post('/:parentDirId', handlePost)
 
 async function handlePost(req, res, next) {
-  const parentDirId = req.params.parentDirId || directoryData[0].id;
+  const user = req.user
+  
+  const parentDirId = req.params.parentDirId ?? user.rootDirId;
   const dirName = req.headers.dirname || "newFolder"
   const parentDir = directoryData.find(dir => dir.id === parentDirId)
   if (!parentDir) return res.status(404).json({ message: "There is no directory exists" })
@@ -53,6 +56,7 @@ async function handlePost(req, res, next) {
   parentDir.directories.push(id)
   directoryData.push({
     id,
+    userId: user.id,
     name: dirName,
     parentDirId,
     files: [],
@@ -88,8 +92,9 @@ router.patch('/:dirId', async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
+     const user = req.user
     const { id } = req.params;
-    const dirData = directoryData.some(dir => dir.id === id)
+    const dirData = directoryData.some(dir => dir.id === id && dir.userId === user.id)
 
     if (!dirData) {
       return res.status(404).json({ message: "no dir exists" })
@@ -130,12 +135,12 @@ async function deleteDirRecursively(dirId, directoryData, fileData) {
 
     let fileIndex = fileData.findIndex(f => f.id === fileId);
 
-    if(fileIndex !== -1) continue;
-      let data = fileData[fileIndex];
-      if (!data) continue;
-      await rm(`./storage/${data.id}${data.extension}`,{force:true});
-      fileData.splice(fileIndex, 1)
-    
+    if (fileIndex !== -1) continue;
+    let data = fileData[fileIndex];
+    if (!data) continue;
+    await rm(`./storage/${data.id}${data.extension}`, { force: true });
+    fileData.splice(fileIndex, 1)
+
   }
 
   const parentDir = directoryData.find(dir => dir.id === dirData.parentDirId)

@@ -1,15 +1,29 @@
 [
     {
-        "id": "123",
-        "parentDirId": "root",
-        "dirName": "null",
-        "files": [
-            "b7492071-a780-4d77-b072-ca5356fc16c6",
-            "8a989786-ab6e-4127-9c8a-d5e36e801e63",
-            "c5a504d9-b372-487c-acc9-e1ba918fd7d0"
-        ],
+        "id": "51d2c989-340e-459f-a7bc-1c6d44b1472e",
+        "parentDirId": null,
+        "name": "root-shoyab@gmail.com",
+        "userId": "058e6858-58ae-4850-948e-13bb7fd5fc92",
+        "files": [],
         "directories": [
-            "09ef9a94-26cd-4917-a451-4eeadfdf6056"
+            "fe23e30c-afd9-4825-b5a9-828418414977",
+            "2532483c-436e-41b0-bca8-3786e3b811f4"
         ]
+    },
+    {
+        "id": "2532483c-436e-41b0-bca8-3786e3b811f4",
+        "userId": "058e6858-58ae-4850-948e-13bb7fd5fc92",
+        "name": "folder2",
+        "parentDirId": "51d2c989-340e-459f-a7bc-1c6d44b1472e",
+        "files": [],
+        "directories": []
+    },
+    {
+        "id": "45deed3a-0d9a-488b-b075-e34455836b41",
+        "parentDirId": null,
+        "name": "root-ak@gmail.com",
+        "userId": "a523a934-49a2-4e92-9ffb-2d2c09fff924",
+        "files": [],
+        "directories": []
     }
 ]

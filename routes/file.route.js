@@ -24,8 +24,15 @@ function safeStoragePath(req, ...parts) {
 
 router.get("/:id", (req, res) => {
   const { id } = req.params;
+  const user = req.user;
+
   const file = fileData.find(fileId => fileId.id === id)
   if (!file) return res.status(404).json({ message: "no such file exists" })
+  
+  if(user.id !== file.userId) {
+     return res.status(401).json({message:"you cant access this"})
+
+  }
   if (req.query.action === "download") {
     res.set("Content-Disposition", `attachment; filename = ${file.name}`);
   }
@@ -47,10 +54,10 @@ router.post("/", handler);              // no parentDirId
 router.post("/:parentDirId", handler);  // with parentDirId
 
 function handler(req, res, next) {
-  const parentDirId = req.params.parentDirId || directoryData[0].id
+  const user = req.user;
+  const parentDirId = req.params.parentDirId ?? user.rootDirId;
   const filename = req.headers.filename
-
-
+  // console.log(parentDirId)
   const id = crypto.randomUUID();
   const extension = path.extname(filename)
   const fullPath = `${id}${extension}`
@@ -74,7 +81,8 @@ function handler(req, res, next) {
       id,
       extension,
       name: filename,
-      parentDirId
+      parentDirId,
+      userId:user.id
     })
     const dirData = directoryData.find(dirId => dirId.id === parentDirId)
 
@@ -98,9 +106,13 @@ function handler(req, res, next) {
 
 router.patch("/:id", async (req, res, next) => {
   try {
+    const user = req.user;
     const { id } = req.params;
     const findData = fileData.find(data => data.id === id)
     if (!findData) return res.status(404).json({ message: "no such file exists" })
+     if(!findData.userId !== user.id) {
+     return res.status(401).json({message:"unauthorized accesss"})
+     }
     findData.name = req.body.newFilename;
     await writeFile("./fileDB.json", JSON.stringify(fileData))
 
@@ -113,14 +125,17 @@ router.patch("/:id", async (req, res, next) => {
 });
 
 router.delete("/:id", async (req, res, next) => {
-
-
+   const user = req.user;
   const { id } = req.params;
   const fileIndex = fileData.findIndex(data => data.id === id)
   if (fileIndex === -1) return res.status(404).json({ message: "file not exists" })
   const findData = fileData[fileIndex]
+   if(findData.userId !== user.id) {
+    return res.status(401).json({message:"unauthorized access to delete"})
+  }
   const dirData = directoryData.find(dirId => dirId.id === findData.parentDirId)
   if (!dirData) return res.status(404).json({ message: "no directory exists" })
+ 
  
   const parts = id.split()
   const filePath = safeStoragePath(req, ...parts)
@@ -144,4 +159,4 @@ router.delete("/:id", async (req, res, next) => {
 
 
 
-export default router;
+export default router; 

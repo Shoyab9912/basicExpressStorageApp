@@ -1,0 +1,16 @@
+[
+    {
+        "id": "058e6858-58ae-4850-948e-13bb7fd5fc92",
+        "rootDirId": "51d2c989-340e-459f-a7bc-1c6d44b1472e",
+        "name": "shoyab",
+        "email": "shoyab@gmail.com",
+        "password": "abcd"
+    },
+    {
+        "id": "a523a934-49a2-4e92-9ffb-2d2c09fff924",
+        "rootDirId": "45deed3a-0d9a-488b-b075-e34455836b41",
+        "name": "ak",
+        "email": "ak@gmail.com",
+        "password": "abc"
+    }
+]
