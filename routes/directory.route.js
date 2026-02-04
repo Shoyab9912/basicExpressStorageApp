@@ -1,6 +1,7 @@
 import express from "express";
 
 import { writeFile, rm } from "node:fs/promises";
+import validateUid from "../middlewares/validId.js";
 
 import directoryData from "../directoriesDB.json" with {type: "json"}
 
@@ -11,20 +12,20 @@ const router = express.Router();
 
 
 
-router.get("/", handler);
-router.get("/:id", handler);
+router.get("/{:id}", handler);
+router.param('id',validateUid)
 
 async function handler(req, res) {
   try {
     const user = req.user;
-  
-    if(!user) {
-      return res.status(404).json({message:"no user found"})
+
+    if (!user) {
+      return res.status(404).json({ message: "no user found" })
     }
     let id = req.params.id ?? user.rootDirId;
     //  console.log(id)
-    const dirData = directoryData.find(dir => dir.id === id );
-    
+    const dirData = directoryData.find(dir => dir.id === id);
+
     if (!dirData) {
       return res.status(404).json({ message: "three are no directories" })
     }
@@ -42,12 +43,12 @@ async function handler(req, res) {
   }
 }
 
-router.post("/", handlePost);
-router.post('/:parentDirId', handlePost)
+router.param("parentDirid",validateUid)
+router.post('/{:parentDirId}', handlePost)
 
 async function handlePost(req, res, next) {
   const user = req.user
-  
+
   const parentDirId = req.params.parentDirId ?? user.rootDirId;
   const dirName = req.headers.dirname || "newFolder"
   const parentDir = directoryData.find(dir => dir.id === parentDirId)
@@ -89,10 +90,11 @@ router.patch('/:dirId', async (req, res, next) => {
   }
 })
 
+router.param("id",validateUid)
 
 router.delete("/:id", async (req, res, next) => {
   try {
-     const user = req.user
+    const user = req.user
     const { id } = req.params;
     const dirData = directoryData.some(dir => dir.id === id && dir.userId === user.id)
 

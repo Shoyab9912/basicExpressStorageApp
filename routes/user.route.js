@@ -8,6 +8,7 @@ import directoryData from "../directoriesDB.json" with {type: "json"}
 
 import userData from "../userDB.json" with {type: "json"}
 
+import checkAuth from "../middlewares/auth.js"
 
 const router = express.Router();
 
@@ -80,5 +81,15 @@ router.post("/login",(req,res,next) => {
     })
 })
 
+router.get('/',checkAuth,(req,res) => {
+    return res.status(200).json({
+        name:req.user.name,
+        email:req.user.email
+    })
+})
+
+router.post("/logout",(req,res) => {
+    return res.status(204).clearCookie('uid')
+})
 
 export default router;

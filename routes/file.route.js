@@ -1,11 +1,10 @@
 import express from "express";
 import path from "node:path";
-import { rename, rm, writeFile } from "node:fs/promises";
+import {  rm, writeFile } from "node:fs/promises";
 import { createWriteStream, } from "node:fs";
 import directoryData from "../directoriesDB.json" with {type: "json"}
-
 import fileData from "../fileDB.json" with {type: "json"}
-
+import validateUid  from "../middlewares/validId.js";
 const router = express.Router()
 
 
@@ -28,18 +27,20 @@ router.get("/:id", (req, res) => {
 
   const file = fileData.find(fileId => fileId.id === id)
   if (!file) return res.status(404).json({ message: "no such file exists" })
-  
-  if(user.id !== file.userId) {
-     return res.status(401).json({message:"you cant access this"})
 
-  }
-  if (req.query.action === "download") {
-    res.set("Content-Disposition", `attachment; filename = ${file.name}`);
+  if (user.id !== file.userId) {
+    return res.status(401).json({ message: "you cant access this" })
+
   }
 
   const parts = id.split()
 
   const filePath = safeStoragePath(req, ...parts)
+
+  if (req.query.action === "download") {
+    return res.download(`${filePath}${file.extension}`,file.name)
+  }
+
   return res.sendFile(`${filePath}${file.extension}`, (err) => {
     if (!res.headersSent && err) {
       return res.status(404).json({
@@ -49,9 +50,9 @@ router.get("/:id", (req, res) => {
   });
 });
 
+router.param("parentDirId",validateUid)
 
-router.post("/", handler);              // no parentDirId
-router.post("/:parentDirId", handler);  // with parentDirId
+router.post("/{:parentDirId}", handler);  // with parentDirId
 
 function handler(req, res, next) {
   const user = req.user;
@@ -82,7 +83,7 @@ function handler(req, res, next) {
       extension,
       name: filename,
       parentDirId,
-      userId:user.id
+      userId: user.id
     })
     const dirData = directoryData.find(dirId => dirId.id === parentDirId)
 
@@ -110,9 +111,9 @@ router.patch("/:id", async (req, res, next) => {
     const { id } = req.params;
     const findData = fileData.find(data => data.id === id)
     if (!findData) return res.status(404).json({ message: "no such file exists" })
-     if(!findData.userId !== user.id) {
-     return res.status(401).json({message:"unauthorized accesss"})
-     }
+    if (findData.userId !== user.id) {
+      return res.status(401).json({ message: "unauthorized accesss" })
+    }
     findData.name = req.body.newFilename;
     await writeFile("./fileDB.json", JSON.stringify(fileData))
 
@@ -125,22 +126,22 @@ router.patch("/:id", async (req, res, next) => {
 });
 
 router.delete("/:id", async (req, res, next) => {
-   const user = req.user;
+  const user = req.user;
   const { id } = req.params;
   const fileIndex = fileData.findIndex(data => data.id === id)
   if (fileIndex === -1) return res.status(404).json({ message: "file not exists" })
   const findData = fileData[fileIndex]
-   if(findData.userId !== user.id) {
-    return res.status(401).json({message:"unauthorized access to delete"})
+  if (findData.userId !== user.id) {
+    return res.status(401).json({ message: "unauthorized access to delete" })
   }
   const dirData = directoryData.find(dirId => dirId.id === findData.parentDirId)
   if (!dirData) return res.status(404).json({ message: "no directory exists" })
- 
- 
+
+
   const parts = id.split()
   const filePath = safeStoragePath(req, ...parts)
   try {
-    await rm(`${filePath}${findData.extension}`, { recursive: true });
+    await rm(`${filePath}${findData.extension}`, { force: true });
 
     fileData.splice(fileIndex, 1)
     dirData.files = dirData.files.filter(dirId => dirId !== id)
@@ -157,6 +158,6 @@ router.delete("/:id", async (req, res, next) => {
   }
 });
 
-
+router.param("id",validateUid)
 
 export default router; 

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import fileRoutes from "./routes/file.route.js"
 import directoryRoutes from "./routes/directory.route.js"
 import userRoutes from "./routes/user.route.js"
-import checkAuth from "./auth.js"
+import checkAuth from "./middlewares/auth.js"
 const app = express();
 app.use(cookieParser())
 app.use(cors({

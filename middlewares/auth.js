@@ -1,4 +1,4 @@
-import userData from "./userDB.json" with {type: "json"}
+import userData from "../userDB.json" with {type: "json"}
 
 
 
