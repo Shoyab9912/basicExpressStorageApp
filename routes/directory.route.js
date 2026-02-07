@@ -13,10 +13,10 @@ const router = express.Router();
 
 
 
-router.get("/{:id}", async (req,res) => {
+router.get("/{:id}", async (req, res,next) => {
   try {
- 
-     const user = req.user;
+
+    const user = req.user;
 
     if (!user) {
       return res.status(404).json({ message: "no user found" })
@@ -25,61 +25,68 @@ router.get("/{:id}", async (req,res) => {
     const db = req.db;
 
     const dirCollection = db.collection("directories");
-  
+
     const id = req.params.id ?? user.parentDirId;
-  
+
     const dirData = await dirCollection.findOne({
-      _id:new ObjectId(id)
+      _id: new ObjectId(id)
     })
 
-     if (!dirData) {
+    if (!dirData) {
       return res.status(404).json({ message: "three are no directories" })
     }
 
     let files = [];
     let directories = [];
 
-   return res.status(200).json({ ...dirData, files, directories })
+    return res.status(200).json({ ...dirData, files, directories })
   } catch (err) {
-    return res.status(404).json({
-      message: "No files or directory exists"
-    })
+     next(err)
   }
 });
-router.param('id',validateUid)
+router.param('id', validateUid)
 
 
 
-router.param("parentDirid",validateUid)
-router.post('/{:parentDirId}', handlePost)
+router.param("parentDirid", validateUid)
+router.post('/{:parentDirId}', async (req, res,next) => {
 
-async function handlePost(req, res, next) {
-  const user = req.user
+  const user = req.user;
+
+  if (!user) {
+    return res.status(404).json({ message: "no user found" })
+  }
+
+  const db = req.db;
+
+  const dirCollection = db.collection("directories");
 
   const parentDirId = req.params.parentDirId ?? user.rootDirId;
-  const dirName = req.headers.dirname || "newFolder"
-  const parentDir = directoryData.find(dir => dir.id === parentDirId)
-  if (!parentDir) return res.status(404).json({ message: "There is no directory exists" })
-  const id = crypto.randomUUID()
-  parentDir.directories.push(id)
-  directoryData.push({
-    id,
-    userId: user.id,
-    name: dirName,
-    parentDirId,
-    files: [],
-    directories: []
-  })
 
+  const dirName = req.headers.dirname || "newFolder"
   try {
-    await writeFile("./directoriesDB.json", JSON.stringify(directoryData))
-    return res.status(201).json({
-      message: "successfully folder created",
-    });
-  } catch (err) {
-    next(err)
+    const parentDir = await dirCollection.findOne({
+      _id: new ObjectId(parentDirId),
+      userId: user._id
+    })
+
+    if (!parentDir) return res.status(404).json({ message: "There is no directory exists" })
+
+   const saveDir =  await dirCollection.insertOne({
+      userId: user._id,
+      name: dirName,
+      parentDirId,
+    })
+
+    console.log(saveDir)
+  return res.status(201).json({
+    message:"successfully created dir"
+  })
+  } catch (error) {
+       next(error)
   }
-}
+})
+
 
 router.patch('/:dirId', async (req, res, next) => {
   const { dirId } = req.params;
@@ -97,7 +104,7 @@ router.patch('/:dirId', async (req, res, next) => {
   }
 })
 
-router.param("id",validateUid)
+router.param("id", validateUid)
 
 router.delete("/:id", async (req, res, next) => {
   try {
