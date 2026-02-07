@@ -157,10 +157,10 @@ router.delete("/:id", async (req, res, next) => {
     })
     if (!fileData) return res.status(404).json({ message: "file not exists" })
 
-
+   
     const filePath = safeStoragePath(req, id)
     
-    await rm(`${filePath}${findData.extension}`, { force: true });
+    await rm(`${filePath}${fileData.extension}`, { force: true });
     await fileCollection.deleteOne({
       _id:new ObjectId(id)
     })

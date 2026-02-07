@@ -25,10 +25,12 @@ router.get("/{:id}", async (req, res, next) => {
     const db = req.db;
 
     const dirCollection = db.collection("directories");
+    
+    const fileCollection = db.collection("files")
 
     const id = req.params.id ?? user.rootDirId;
 
-    console.log(id)
+    
     const dirData = await dirCollection.findOne({
       _id: new ObjectId(id)
     })
@@ -37,12 +39,15 @@ router.get("/{:id}", async (req, res, next) => {
       return res.status(404).json({ message: "there are no directories" })
     }
 
-    let files = [];
+    let files = await fileCollection.find({
+      parentDirId:dirData._id
+    }).toArray()
+    
     let directories = await dirCollection.find({
       parentDirId: new ObjectId(id)
     }).toArray()
 
-    return res.status(200).json({ ...dirData, files, directories: directories.map(dir => ({ ...dir, id: dir._id })) })
+    return res.status(200).json({ ...dirData, files:files.map(file => ({...file,id:file._id})), directories: directories.map(dir => ({ ...dir, id: dir._id })) })
   } catch (err) {
     next(err)
   }
@@ -66,6 +71,7 @@ router.post('/{:parentDirId}', async (req, res, next) => {
 
   const parentDirId = req.params.parentDirId ?? user.rootDirId;
 
+   
   const dirName = req.headers.dirname || "newFolder"
   try {
     const parentDir = await dirCollection.findOne({
