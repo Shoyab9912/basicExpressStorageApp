@@ -7,41 +7,48 @@ import directoryData from "../directoriesDB.json" with {type: "json"}
 
 import fileData from "../fileDB.json" with {type: "json"}
 import crypto from "node:crypto"
+import { ObjectId } from "mongodb";
 
 const router = express.Router();
 
 
 
-router.get("/{:id}", handler);
-router.param('id',validateUid)
-
-async function handler(req, res) {
+router.get("/{:id}", async (req,res) => {
   try {
-    const user = req.user;
+ 
+     const user = req.user;
 
     if (!user) {
       return res.status(404).json({ message: "no user found" })
     }
-    let id = req.params.id ?? user.rootDirId;
-    //  console.log(id)
-    const dirData = directoryData.find(dir => dir.id === id);
 
-    if (!dirData) {
+    const db = req.db;
+
+    const dirCollection = db.collection("directories");
+  
+    const id = req.params.id ?? user.parentDirId;
+  
+    const dirData = await dirCollection.findOne({
+      _id:new ObjectId(id)
+    })
+
+     if (!dirData) {
       return res.status(404).json({ message: "three are no directories" })
     }
 
+    let files = [];
+    let directories = [];
 
-    const files = dirData.files.map(fileId => fileData.find(fs => fs.id === fileId)).filter(Boolean)
-
-    const directories = dirData.directories.map(dirId => directoryData.find(dir => dir.id === dirId)).filter(Boolean).map(({ id, name }) => ({ id, name }))
-
-    return res.status(200).json({ ...dirData, files, directories })
+   return res.status(200).json({ ...dirData, files, directories })
   } catch (err) {
     return res.status(404).json({
       message: "No files or directory exists"
     })
   }
-}
+});
+router.param('id',validateUid)
+
+
 
 router.param("parentDirid",validateUid)
 router.post('/{:parentDirId}', handlePost)
