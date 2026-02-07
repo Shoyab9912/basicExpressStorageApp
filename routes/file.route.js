@@ -1,19 +1,18 @@
 import express from "express";
 import path from "node:path";
-import {  rm, writeFile } from "node:fs/promises";
+import { rm} from "node:fs/promises";
 import { createWriteStream, } from "node:fs";
-import directoryData from "../directoriesDB.json" with {type: "json"}
-import fileData from "../fileDB.json" with {type: "json"}
-import validateUid  from "../middlewares/validId.js";
+import validateUid from "../middlewares/validId.js";
+import { ObjectId } from "mongodb";
 const router = express.Router()
 
 
 
-function safeStoragePath(req, ...parts) {
+function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase)
-  console.log(base, ...parts)
-  const target = path.resolve(base, ...parts)
-  console.log(base)
+
+  const target = path.resolve(base, part)
+
   if (base !== target && !target.startsWith(base + path.sep)) {
     throw new Error("invalid path")
   }
@@ -21,24 +20,27 @@ function safeStoragePath(req, ...parts) {
   return target
 }
 
-router.get("/:id", (req, res) => {
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
+
   const user = req.user;
 
-  const file = fileData.find(fileId => fileId.id === id)
+  const db = req.db;
+
+  const fileCollection = db.collection("files")
+
+
+  const file = await fileCollection.findOne({
+    _id: new ObjectId(id),
+    userId: user._id
+  })
+
   if (!file) return res.status(404).json({ message: "no such file exists" })
 
-  if (user.id !== file.userId) {
-    return res.status(401).json({ message: "you cant access this" })
-
-  }
-
-  const parts = id.split()
-
-  const filePath = safeStoragePath(req, ...parts)
+  const filePath = safeStoragePath(req, id)
 
   if (req.query.action === "download") {
-    return res.download(`${filePath}${file.extension}`,file.name)
+    return res.download(`${filePath}${file.extension}`, file.name)
   }
 
   return res.sendFile(`${filePath}${file.extension}`, (err) => {
@@ -50,72 +52,86 @@ router.get("/:id", (req, res) => {
   });
 });
 
-router.param("parentDirId",validateUid)
+router.param("parentDirId", validateUid)
 
-router.post("/{:parentDirId}", handler);  // with parentDirId
-
-function handler(req, res, next) {
+router.post("/{:parentDirId}", async (req, res, next) => {
   const user = req.user;
-  const parentDirId = req.params.parentDirId ?? user.rootDirId;
-  const filename = req.headers.filename
-  // console.log(parentDirId)
-  const id = crypto.randomUUID();
-  const extension = path.extname(filename)
-  const fullPath = `${id}${extension}`
 
-  const writeStream = createWriteStream(`./storage/${fullPath}`);
+  const db = req.db;
 
-  req.pipe(writeStream);
+  const dirCollection = db.collection("directories");
+  const fileCollection = db.collection("files")
 
-  writeStream.on("error", (err) => {
-    next(err)
-  });
+  const parentDirId = req.params.parentDirId ?? user.rootDirId
 
-  req.on("error", (err) => {
-    next(err)
-
-  });
-
-  req.on("end", async () => {
-
-    fileData.push({
-      id,
-      extension,
-      name: filename,
-      parentDirId,
-      userId: user.id
+  if (!parentDirId) {
+    return res.status(400).json({
+      message: "there is no id"
     })
-    const dirData = directoryData.find(dirId => dirId.id === parentDirId)
+  }
 
-    dirData.files.push(id)
+  try {
 
-    try {
-      await writeFile("./fileDB.json", JSON.stringify(fileData))
-      await writeFile('./directoriesDB.json', JSON.stringify(directoryData))
+    const dirData = await dirCollection.findOne({
+      _id: new ObjectId(parentDirId),
+      userId: user._id
+    })
 
+    const fileName = req.headers.filename || "file"
+    // console.log(parentDirId)
+
+    const extension = path.extname(fileName)
+
+
+    const fileData = await fileCollection.insertOne({
+      extension,
+      name: fileName,
+      userId: user._id,
+      parentDirId: dirData._id
+    })
+
+    const fileId = fileData?.insertedId.toString()
+    const fullPath = `${fileId}${extension}`
+    const writeStream = createWriteStream(`./storage/${fullPath}`)
+    req.pipe(writeStream)
+    req.on("end", () => {
       return res.status(201).json({
-        message: "successfully uploaded",
-      });
-    } catch (error) {
+        message: "file uploaded successfully"
+      })
+    })
+    req.on("error", async (err) => {
+      await deleteOne({
+        _id: fileData._id
+      })
       next(err)
-    }
+    })
+  } catch (err) {
+    next(err)
+  }
 
-
-  })
-
-}
+});
 
 router.patch("/:id", async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const findData = fileData.find(data => data.id === id)
-    if (!findData) return res.status(404).json({ message: "no such file exists" })
-    if (findData.userId !== user.id) {
-      return res.status(401).json({ message: "unauthorized accesss" })
-    }
-    findData.name = req.body.newFilename;
-    await writeFile("./fileDB.json", JSON.stringify(fileData))
+    const { newFilename } = req.body
+    const db = req.db;
+    const fileCollection = db.collection("files")
+
+    const fileData = await fileCollection.findOne({
+      _id: new ObjectId(id),
+      userId: user._id
+    })
+    if (!fileData) return res.status(404).json({ message: "no such file exists" })
+
+    await fileCollection.updateOne({
+      _id: fileData._id
+    }, {
+      $set: {
+        name: newFilename
+      }
+    })
 
     return res.status(200).json({
       message: "file renamed successfully",
@@ -128,28 +144,26 @@ router.patch("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   const user = req.user;
   const { id } = req.params;
-  const fileIndex = fileData.findIndex(data => data.id === id)
-  if (fileIndex === -1) return res.status(404).json({ message: "file not exists" })
-  const findData = fileData[fileIndex]
-  if (findData.userId !== user.id) {
-    return res.status(401).json({ message: "unauthorized access to delete" })
-  }
-  const dirData = directoryData.find(dirId => dirId.id === findData.parentDirId)
-  if (!dirData) return res.status(404).json({ message: "no directory exists" })
 
+  const db = req.db;
 
-  const parts = id.split()
-  const filePath = safeStoragePath(req, ...parts)
+  const dirCollection = db.collection("directories");
+  const fileCollection = db.collection("files")
+
   try {
+    const fileData = await fileCollection.findOne({
+      _id: new ObjectId(id),
+      userId: user._id
+    })
+    if (!fileData) return res.status(404).json({ message: "file not exists" })
+
+
+    const filePath = safeStoragePath(req, id)
+    
     await rm(`${filePath}${findData.extension}`, { force: true });
-
-    fileData.splice(fileIndex, 1)
-    dirData.files = dirData.files.filter(dirId => dirId !== id)
-
-    await writeFile("./fileDB.json", JSON.stringify(fileData))
-    await writeFile('./directoriesDB.json', JSON.stringify(directoryData))
-
-
+    await fileCollection.deleteOne({
+      _id:new ObjectId(id)
+    })
     return res.status(204).json({
       message: "successfully removed",
     });
@@ -158,6 +172,6 @@ router.delete("/:id", async (req, res, next) => {
   }
 });
 
-router.param("id",validateUid)
+router.param("id", validateUid)
 
 export default router; 
