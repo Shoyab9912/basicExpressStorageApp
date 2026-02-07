@@ -34,7 +34,7 @@ const __dirname = path.dirname(__filename)
 app.locals.storageBase = path.join(__dirname,"storage")
 
 app.use((req,res,next) => {
-  req.db = db()
+  req.db = db
   next()
 })
 app.use('/directory',checkAuth,directoryRoutes)
