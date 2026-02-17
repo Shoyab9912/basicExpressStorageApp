@@ -1,8 +1,8 @@
-
-import { ObjectId } from "mongodb";
+import mongoose from "mongoose" 
 // import { client } from "../config/db.js";
-
-
+import Directory  from "../models/directory.model.js";
+import User from "../models/user.model.js"
+import { ObjectId } from "mongodb";
 
 const registerUser = async (req, res, next) => {
 
@@ -11,20 +11,19 @@ const registerUser = async (req, res, next) => {
     if ([email, password, name].some(f => f.trim() === "")) {
         return res.status(404).json({
             succcess: false,
-            message: 'add all fields'
+            message: 'fill all fields'
         })
     }
 
 
 
-    let db = req.db;
 
-    const session = client.startSession()
+
+    const session = mongoose.startSession()
     session.startTransaction()
     try {
-        let dirCollection = db.collection("directories")
-        let userCollection = db.collection("users")
-        const user = await userCollection.findOne({ email })
+
+        const user = await User.findOne({ email })
 
         if (user) {
             return res.status(409).json({
@@ -35,14 +34,14 @@ const registerUser = async (req, res, next) => {
         const userId = new ObjectId()
         const rootDirId = new ObjectId()
 
-        await dirCollection.insertOne({
+        await Directory.create({
             _id:rootDirId,
             parentDirId: null,
             name: `root-${email}`,
             userId
         }, { session })
 
-        await userCollection.insertOne({
+        await User.create({
             _id: userId,
             name,
             email,
@@ -81,7 +80,7 @@ const login =  async (req, res, next) => {
         return res.status(404).json({ message: "fill all fields" })
     }
 
-    let db = req.db;
+    
 
     let userCollection = db.collection("users")
 
