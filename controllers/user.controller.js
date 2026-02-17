@@ -1,8 +1,7 @@
-import mongoose from "mongoose" 
+import mongoose from "mongoose"
 // import { client } from "../config/db.js";
-import Directory  from "../models/directory.model.js";
+import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
-import { ObjectId } from "mongodb";
 
 const registerUser = async (req, res, next) => {
 
@@ -18,11 +17,11 @@ const registerUser = async (req, res, next) => {
 
 
 
-
-    const session = mongoose.startSession()
+    const session = await mongoose.startSession()
     session.startTransaction()
-    try {
 
+
+    try {
         const user = await User.findOne({ email })
 
         if (user) {
@@ -31,11 +30,11 @@ const registerUser = async (req, res, next) => {
             })
         }
 
-        const userId = new ObjectId()
-        const rootDirId = new ObjectId()
+        const userId = new mongoose.Types.ObjectId()
+        const rootDirId = new mongoose.Types.ObjectId()
 
-        await Directory.create({
-            _id:rootDirId,
+        await Directory.insertOne({
+            _id: rootDirId,
             parentDirId: null,
             name: `root-${email}`,
             userId
@@ -56,16 +55,16 @@ const registerUser = async (req, res, next) => {
             message: "succesfully created"
         })
     } catch (err) {
-          await session.abortTransaction()
+        await session.abortTransaction()
         console.log(err)
-        if(err.code === 121) {
+        if (err.code === 121) {
             return res.status(400).json({
-                error:"invalid fields"
+                error: "invalid fields"
             })
         } else {
             next(err)
         }
-    
+
     } finally {
         await session.endSession()
     }
@@ -73,14 +72,14 @@ const registerUser = async (req, res, next) => {
 
 
 
-const login =  async (req, res, next) => {
+const login = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
         return res.status(404).json({ message: "fill all fields" })
     }
 
-    
+
 
 
 
@@ -108,7 +107,7 @@ const login =  async (req, res, next) => {
 }
 
 
-const getNameAndEmail =  (req, res) => {
+const getNameAndEmail = (req, res) => {
     return res.status(200).json({
         name: req.user.name,
         email: req.user.email
@@ -117,12 +116,12 @@ const getNameAndEmail =  (req, res) => {
 
 
 const logout = (req, res) => {
-  res.clearCookie("uid", {
-    httpOnly: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
-    // add secure/sameSite if you used them in login
-  });
-  return res.sendStatus(204);
+    res.clearCookie("uid", {
+        httpOnly: true,
+        maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
+        // add secure/sameSite if you used them in login
+    });
+    return res.sendStatus(204);
 }
 
 

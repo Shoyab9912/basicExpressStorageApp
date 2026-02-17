@@ -34,9 +34,9 @@ const __dirname = path.dirname(__filename)
 
 app.locals.storageBase = path.join(__dirname,"storage")
 
-app.use('/directories',checkAuth,directoryRoutes)
-app.use('/files',checkAuth,fileRoutes)
-app.use("/users",userRoutes)
+app.use('/directory',checkAuth,directoryRoutes)
+app.use('/file',checkAuth,fileRoutes)
+app.use("/user",userRoutes)
 
 
 

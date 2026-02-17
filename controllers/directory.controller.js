@@ -27,13 +27,13 @@ const getDirectory = async (req, res, next) => {
 
     let files = await File.find({
       parentDirId: dirData._id
-    })
+    }).lean()
 
     let directories = await Directory.find({
       parentDirId: id
-    })
+    }).lean()
 
-    return res.status(200).json({ ...dirData._doc, files: files.map(file => ({ ...file, id: file._id })), directories: directories.map(dir => ({ ...dir._doc, id: dir._id })) })
+    return res.status(200).json({ ...dirData, files: files.map(file => ({ ...file, id: file._id })), directories: directories.map(dir => ({ ...dir, id: dir._id })) })
   } catch (err) {
     next(err)
   }
@@ -64,12 +64,12 @@ const createDirectory = async (req, res, next) => {
 
     if (!parentDir) return res.status(404).json({ message: "There is  no such directory exists" })
 
-    const createDir = await Directory.create({
+    await Directory.create({
       userId: user._id,
       name: dirName,
       parentDirId
     })
-    console.log(createDir)
+    
     return res.status(201).json({
       message: "successfully created dir"
     })
@@ -126,7 +126,7 @@ const deleteDirRecursively = async (req, res, next) => {
     if (!dirData) {
       return res.status(404).json({ message: "no such  dir exists" })
     }
-
+    console.log(dirData)
     async function getDirRecursively(id) {
       try {
 
@@ -179,14 +179,14 @@ const deleteDirRecursively = async (req, res, next) => {
     })
   }
 
-  if(directories.length !== 0) {
+  
     await Directory.deleteMany({
       _id: {
         $in: [...directories.map(dir => dir._id), dirData._id]
       }
     })
 
-  }
+  
 
     return res.status(200).json({
       message: "successfully removed",

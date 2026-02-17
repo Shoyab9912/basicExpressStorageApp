@@ -78,14 +78,14 @@ const uploadFile = async (req, res, next) => {
 
     const extension = path.extname(fileName)
 
-    const fileData = await File.create({
+    const fileData = await File.insertOne({
       extension,
       name: fileName,
       userId: user._id,
       parentDirId: dirData._id
     })
-
-    const fileId = fileData?._id.toString()
+   console.log(fileData)
+    const fileId = fileData.id
     const fullPath = `${fileId}${extension}`
     const writeStream = createWriteStream(`./storage/${fullPath}`)
     req.pipe(writeStream)
@@ -95,7 +95,10 @@ const uploadFile = async (req, res, next) => {
       })
     })
     req.on("error", async (err) => {
-      await File.findByIdAndDelete(fileData._id)
+      const filePath = safeStoragePath(req, fileId)
+      await rm(`${filePath}${fileData.extension}`, { force: true });
+
+      await File.findByIdAndDelete(fileData.id)
       next(err)
     })
   } catch (err) {
@@ -147,14 +150,20 @@ const deleteFile = async (req, res, next) => {
 
   try {
 
-    const filePath = safeStoragePath(req, id)
-    
-     const deletedFile = await File.deleteOne({
+    const file = await File.findOne({
       _id: id,
       userId: user._id
-    })
-   
-    await rm(`${filePath}${deletedFile.extension}`, { force: true });
+    }).select(' extension ')
+
+    if (!file) {
+      return res.status(404).json({
+        message: "file doesn't exists"
+      })
+    }
+
+    const filePath = safeStoragePath(req, id)
+    await file.deleteOne()
+    await rm(`${filePath}${file.extension}`, { force: true });
 
     return res.status(204).json({
       message: "successfully removed",
