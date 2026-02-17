@@ -1,7 +1,8 @@
 import path from "node:path";
 import { rm} from "node:fs/promises";
 import { createWriteStream, } from "node:fs";
-import validateUid from "../middlewares/validId.js";
+import File from "../models/file.model.js"
+
 import { ObjectId } from "mongodb";
 
 
@@ -25,13 +26,10 @@ const serveOrDownloadFile =  async (req, res) => {
 
   const user = req.user;
 
-  const db = req.db;
-
-  const fileCollection = db.collection("files")
 
 
-  const file = await fileCollection.findOne({
-    _id: new ObjectId(id),
+  const file = await File.findOne({
+    _id: id,
     userId: user._id
   })
 

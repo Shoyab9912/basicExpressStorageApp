@@ -3,18 +3,6 @@ import { rm } from "node:fs/promises";
 import Directory from "../models/directory.model.js";
 import File from "../models/file.model.js"
 
-function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase)
-
-  const target = path.resolve(base, part)
-
-  if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new Error("invalid path")
-  }
-
-  return target
-}
-
 const getDirectory = async (req, res, next) => {
   try {
 
@@ -179,6 +167,7 @@ const deleteDirRecursively = async (req, res, next) => {
     console.log(files,directories)
   
    if(files.length !== 0){
+     con
     for (let { _id, extension } of files) {
       await rm(`./storage/${_id.toString()}${extension}`, { force: true });
     }
