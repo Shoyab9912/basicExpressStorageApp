@@ -14,7 +14,7 @@ const getDirectory = async (req, res, next) => {
 
 
 
-    const id = req.params.id ? req.params.id : user.rootDirId;
+    const id = req.params.id ?? user.rootDirId;
 
     const dirData = await Directory.findById(id)
 

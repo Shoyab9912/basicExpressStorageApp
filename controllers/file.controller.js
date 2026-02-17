@@ -2,6 +2,7 @@ import path from "node:path";
 import { rm} from "node:fs/promises";
 import { createWriteStream, } from "node:fs";
 import File from "../models/file.model.js"
+import Directory from "../models/directory.model.js";
 
 import { ObjectId } from "mongodb";
 
@@ -55,40 +56,36 @@ const serveOrDownloadFile =  async (req, res) => {
 const uploadFile = async (req, res, next) => {
   const user = req.user;
 
-  const db = req.db;
 
-  const dirCollection = db.collection("directories");
-  const fileCollection = db.collection("files")
 
-  const parentDirId = req.params.parentDirId ? new ObjectId(req.params.parentDirId) : user.rootDirId;
+  const parentDirId = req.params.parentDirId  ?? user.rootDirId;
 
   if (!parentDirId) {
     return res.status(400).json({
-      message: "there is no id"
+      message: "id doesn't exist"
     })
   }
 
   try {
 
-    const dirData = await dirCollection.findOne({
+    const dirData = await Directory.findOne({
       _id: parentDirId,
       userId: user._id
     })
 
     const fileName = req.headers.filename || "file"
     // console.log(parentDirId)
-
+    
     const extension = path.extname(fileName)
 
-
-    const fileData = await fileCollection.insertOne({
+    const fileData = await File.create({
       extension,
       name: fileName,
       userId: user._id,
       parentDirId: dirData._id
     })
-
-    const fileId = fileData?.insertedId.toString()
+     
+    const fileId = fileData?._id.toString()
     const fullPath = `${fileId}${extension}`
     const writeStream = createWriteStream(`./storage/${fullPath}`)
     req.pipe(writeStream)
@@ -98,12 +95,11 @@ const uploadFile = async (req, res, next) => {
       })
     })
     req.on("error", async (err) => {
-      await deleteOne({
-        _id: fileData._id
-      })
+      await File.findByIdAndDelete(fileData._id)
       next(err)
     })
   } catch (err) {
+    console.error("error",err.message)
     next(err)
   }
 

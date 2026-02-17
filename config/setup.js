@@ -72,7 +72,8 @@ await db.command({
         bsonType: 'objectId'
       }
     },
-    additionalProperties : false
+  
+
   }
 }
 }) 
