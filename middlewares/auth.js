@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import User from "../models/user.model.js"
 
 export default async function checkAuth(req, res, next) {
   try {
@@ -9,10 +10,7 @@ export default async function checkAuth(req, res, next) {
       return res.status(400).json({ message: "invalid uid" });
     }
 
-    const user = await req.db.collection("users").findOne(
-      { _id: new ObjectId(uid) },
-      { projection: { password: 0 } }
-    );
+    const user = await User.findById(uid).select("-password");
 
     if (!user) {
       return res.status(401).json({ error: "unauthorized access" });

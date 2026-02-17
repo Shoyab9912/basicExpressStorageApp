@@ -12,13 +12,14 @@ const directorySchema = new Schema({
     },
     parentDirId: {
         type:Schema.Types.ObjectId,
-        ref:"Directory"
+        ref:"Directory",
+        default:null
     }
 },{
-    timestamps:true
+    versionKey:false
 }) 
 
 
-const Directory = model(Directory,directorySchema)
+const Directory = model("Directory",directorySchema)
 
 export default Directory
