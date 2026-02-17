@@ -1,5 +1,5 @@
 import path from "node:path";
-import { rm} from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { createWriteStream, } from "node:fs";
 import File from "../models/file.model.js"
 import Directory from "../models/directory.model.js";
@@ -22,7 +22,7 @@ function safeStoragePath(req, part) {
 
 
 
-const serveOrDownloadFile =  async (req, res) => {
+const serveOrDownloadFile = async (req, res) => {
   const { id } = req.params;
 
   const user = req.user;
@@ -58,7 +58,7 @@ const uploadFile = async (req, res, next) => {
 
 
 
-  const parentDirId = req.params.parentDirId  ?? user.rootDirId;
+  const parentDirId = req.params.parentDirId ?? user.rootDirId;
 
   if (!parentDirId) {
     return res.status(400).json({
@@ -75,7 +75,7 @@ const uploadFile = async (req, res, next) => {
 
     const fileName = req.headers.filename || "file"
     // console.log(parentDirId)
-    
+
     const extension = path.extname(fileName)
 
     const fileData = await File.create({
@@ -84,7 +84,7 @@ const uploadFile = async (req, res, next) => {
       userId: user._id,
       parentDirId: dirData._id
     })
-     
+
     const fileId = fileData?._id.toString()
     const fullPath = `${fileId}${extension}`
     const writeStream = createWriteStream(`./storage/${fullPath}`)
@@ -99,7 +99,7 @@ const uploadFile = async (req, res, next) => {
       next(err)
     })
   } catch (err) {
-    console.error("error",err.message)
+    console.error("error", err.message)
     next(err)
   }
 
@@ -111,21 +111,23 @@ const renameFile = async (req, res, next) => {
     const user = req.user;
     const { id } = req.params;
     const { newFilename } = req.body
-    const db = req.db;
-    const fileCollection = db.collection("files")
 
-    const fileData = await fileCollection.findOne({
-      _id: new ObjectId(id),
+    if (!newFilename || !newFilename.trim()) {
+      return res.status(400).json({
+        message: "Invalid filename"
+      });
+    }
+
+
+    await File.findOneAndUpdate({
+      _id: id,
       userId: user._id
-    })
-    if (!fileData) return res.status(404).json({ message: "no such file exists" })
-
-    await fileCollection.updateOne({
-      _id: fileData._id
     }, {
       $set: {
         name: newFilename
       }
+    }, {
+      returnDocument: "after"
     })
 
     return res.status(200).json({
@@ -142,25 +144,18 @@ const deleteFile = async (req, res, next) => {
   const user = req.user;
   const { id } = req.params;
 
-  const db = req.db;
-
-  const dirCollection = db.collection("directories");
-  const fileCollection = db.collection("files")
 
   try {
-    const fileData = await fileCollection.findOne({
-      _id: new ObjectId(id),
-      userId: user._id
-    })
-    if (!fileData) return res.status(404).json({ message: "file not exists" })
 
-   
     const filePath = safeStoragePath(req, id)
     
-    await rm(`${filePath}${fileData.extension}`, { force: true });
-    await fileCollection.deleteOne({
-      _id:new ObjectId(id)
+     const deletedFile = await File.deleteOne({
+      _id: id,
+      userId: user._id
     })
+   
+    await rm(`${filePath}${deletedFile.extension}`, { force: true });
+
     return res.status(204).json({
       message: "successfully removed",
     });
@@ -171,8 +166,8 @@ const deleteFile = async (req, res, next) => {
 
 
 export {
-    serveOrDownloadFile,
-    uploadFile,
-    renameFile,
-    deleteFile
+  serveOrDownloadFile,
+  uploadFile,
+  renameFile,
+  deleteFile
 }
