@@ -16,43 +16,43 @@ function safeStoragePath(req, part) {
 }
 
 const getDirectory = async (req, res, next) => {
-    try {
+  try {
 
-        const user = req.user;
+    const user = req.user;
 
-        if (!user) {
-            return res.status(404).json({ message: "there is no user exist" })
-        }
-
-    
-
-        const id = req.params.id ? req.params.id : user.rootDirId;
-
-        const dirData = await Directory.findById(id)
-
-        if (!dirData) {
-            return res.status(404).json({ message: "directory doesn't exist" })
-        }
-
-    
-        
-
-        let files = await File.find({
-            parentDirId: dirData._id
-        })
-
-        let directories = await Directory.find({
-            parentDirId: id
-        })
-
-        return res.status(200).json({ ...dirData._doc, files: files.map(file => ({ ...file, id: file._id })), directories: directories.map(dir => ({ ...dir._doc, id: dir._id })) })
-    } catch (err) {
-        next(err)
+    if (!user) {
+      return res.status(404).json({ message: "there is no user exist" })
     }
+
+
+
+    const id = req.params.id ? req.params.id : user.rootDirId;
+
+    const dirData = await Directory.findById(id)
+
+    if (!dirData) {
+      return res.status(404).json({ message: "directory doesn't exist" })
+    }
+
+
+
+
+    let files = await File.find({
+      parentDirId: dirData._id
+    })
+
+    let directories = await Directory.find({
+      parentDirId: id
+    })
+
+    return res.status(200).json({ ...dirData._doc, files: files.map(file => ({ ...file, id: file._id })), directories: directories.map(dir => ({ ...dir._doc, id: dir._id })) })
+  } catch (err) {
+    next(err)
+  }
 }
 
 
-const createDirectory =  async (req, res, next) => {
+const createDirectory = async (req, res, next) => {
 
   const user = req.user;
 
@@ -60,28 +60,28 @@ const createDirectory =  async (req, res, next) => {
     return res.status(404).json({ message: "there is no user exist" })
   }
 
- 
+
   const parentDirId = req.params.parentDirId ? new ObjectId(req.params.parentDirId) : user.rootDirId;
 
   const dirName = req.headers.dirname || "newFolder"
 
-  
+
   try {
-    
+
     const parentDir = await Directory.findOne({
       _id: parentDirId,
-      userId:user._id
+      userId: user._id
     })
 
 
     if (!parentDir) return res.status(404).json({ message: "There is  no such directory exists" })
 
-   const createDir =  await Directory.create({
+    const createDir = await Directory.create({
       userId: user._id,
       name: dirName,
-      parentDirId 
+      parentDirId
     })
-  console.log(createDir)
+    console.log(createDir)
     return res.status(201).json({
       message: "successfully created dir"
     })
@@ -89,12 +89,12 @@ const createDirectory =  async (req, res, next) => {
   } catch (error) {
     console.log(error.errInfo.details.schemaRulesNotSatisfied)
     next(error)
-    
-  } 
+
+  }
 }
 
 
-const updateDirectoryName =  async (req, res, next) => {
+const updateDirectoryName = async (req, res, next) => {
   const { dirId } = req.params;
   const { newDirName } = req.body;
   const user = req.user;
@@ -103,28 +103,21 @@ const updateDirectoryName =  async (req, res, next) => {
     return res.status(404).json({ message: "no user found" })
   }
 
-  const db = req.db;
-
-  const dirCollection = db.collection("directories");
-
-
   try {
-    const dirData = await dirCollection.findOne({
-      _id: new ObjectId(dirId)
-    })
-    if (!dirData) return res.status(404).json({ message: "there is no directory  exists" })
-
-    await dirCollection.updateOne({
-      _id: new ObjectId(dirId),
+    const dirData = await Directory.findOneAndUpdate({
+      _id: dirId,
       userId: user._id
     }, {
       $set: {
         name: newDirName
       }
+    }, {
+      returnDocument: "after"
     })
 
     return res.status(201).json({
-      message: "dir rename successfull"
+      message: "dir rename successfull",
+      data: dirData
     })
   } catch (err) {
     next(err)
@@ -132,16 +125,13 @@ const updateDirectoryName =  async (req, res, next) => {
 }
 
 
-const deleteDirRecursively =  async (req, res, next) => {
+const deleteDirRecursively = async (req, res, next) => {
   try {
     const user = req.user
     const { id } = req.params;
-    const db = req.db;
-
-    const dirCollection = db.collection("directories");
-    let fileCollection = db.collection("files")
-    const dirData = await dirCollection.findOne({
-      _id: new ObjectId(id),
+    
+    const dirData = await Directory.findOne({
+      _id: id,
       userId: user._id
     })
 
@@ -152,57 +142,62 @@ const deleteDirRecursively =  async (req, res, next) => {
     async function getDirRecursively(id) {
       try {
 
-        let files = await fileCollection.find({
+        let files = await File.find({
           parentDirId: id
         }, {
-          projection: {
-            extension: 1
-          }
-        }).toArray()
-        let directories = await dirCollection.find({
+          extension: 1
+        }
+        ).lean()
+      
+        let directories = await Directory.find({
           parentDirId: id
         }, {
-          projection: {
-            _id: 1
-          }
-        }).toArray()
+          _id: 1
+         
+        }).lean()
 
+      
         // console.log(directories)
 
-        for (let { _id } of directories) {
+        const currentDirectories = [...directories]
+        
+        for (let { _id } of currentDirectories) {
           const { files: childFiles, directories: childDirs } = await getDirRecursively(_id)
 
-          files = [...files, ...childFiles]
-          directories = [...directories, ...childDirs]
+          files.push(...childFiles)
+          directories.push(...childDirs)
         }
 
-        return { files, directories }
+        return { files , directories }
       } catch (error) {
-        console.log("getting files and directory failed")
+        console.log("getting files and directory failed",error.message)
+        return {files:[],directories:[]}
       }
-
-
     }
 
     const { files, directories } = await getDirRecursively(dirData._id);
-
+    console.log(files,directories)
+  
+   if(files.length !== 0){
     for (let { _id, extension } of files) {
       await rm(`./storage/${_id.toString()}${extension}`, { force: true });
     }
 
-     await fileCollection.deleteMany({
+    await File.deleteMany({
       _id: {
         $in: [...files.map(f => f._id)]
       }
     })
+  }
 
-     await dirCollection.deleteMany({
+  if(directories.length !== 0) {
+    await Directory.deleteMany({
       _id: {
         $in: [...directories.map(dir => dir._id), dirData._id]
       }
     })
 
-
+  }
 
     return res.status(200).json({
       message: "successfully removed",
@@ -218,8 +213,8 @@ const deleteDirRecursively =  async (req, res, next) => {
 
 
 export {
-    createDirectory,
-    getDirectory,
-    deleteDirRecursively,
-    updateDirectoryName
+  createDirectory,
+  getDirectory,
+  deleteDirRecursively,
+  updateDirectoryName
 }
