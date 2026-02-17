@@ -82,11 +82,11 @@ const login =  async (req, res, next) => {
 
     
 
-    let userCollection = db.collection("users")
+
 
     try {
 
-        const user = await userCollection.findOne({ email, password })
+        const user = await User.findOne({ email, password })
 
         if (!user) {
             return res.status(404).json({ message: "invalid credientials" })
