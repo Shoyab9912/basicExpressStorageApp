@@ -127,7 +127,44 @@ const deleteDirRecursively = async (req, res, next) => {
       return res.status(404).json({ message: "no such  dir exists" })
     }
     console.log(dirData)
-    async function getDirRecursively(id) {
+   
+
+    const { files, directories } = await getDirRecursively(dirData._id);
+  
+  
+   if(files.length !== 0){
+    for (let { _id, extension } of files) {
+      await rm(`./storage/${_id.toString()}${extension}`, { force: true });
+    }
+
+    await File.deleteMany({
+      _id: {
+        $in: [...files.map(f => f._id)]
+      }
+    })
+  }
+
+  
+    await Directory.deleteMany({
+      _id: {
+        $in: [...directories.map(dir => dir._id), dirData._id]
+      }
+    })
+
+  
+
+    return res.status(200).json({
+      message: "successfully removed",
+    });
+
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+ async function getDirRecursively(id) {
       try {
 
         let files = await File.find({
@@ -162,42 +199,6 @@ const deleteDirRecursively = async (req, res, next) => {
         return {files:[],directories:[]}
       }
     }
-
-    const { files, directories } = await getDirRecursively(dirData._id);
-    console.log(files,directories)
-  
-   if(files.length !== 0){
-     con
-    for (let { _id, extension } of files) {
-      await rm(`./storage/${_id.toString()}${extension}`, { force: true });
-    }
-
-    await File.deleteMany({
-      _id: {
-        $in: [...files.map(f => f._id)]
-      }
-    })
-  }
-
-  
-    await Directory.deleteMany({
-      _id: {
-        $in: [...directories.map(dir => dir._id), dirData._id]
-      }
-    })
-
-  
-
-    return res.status(200).json({
-      message: "successfully removed",
-    });
-
-
-  } catch (error) {
-    next(error)
-  }
-}
-
 
 
 
