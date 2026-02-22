@@ -1,8 +1,9 @@
 import mongoose from "mongoose"
+import { Buffer } from "buffer"
 // import { client } from "../config/db.js";
 import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
-
+import crypto from "node:crypto"
 const registerUser = async (req, res, next) => {
 
     const { email, password, name } = req.body;
@@ -40,7 +41,7 @@ const registerUser = async (req, res, next) => {
             userId
         }, { session })
 
-        await User.create({
+        await User.insertOne({
             _id: userId,
             name,
             email,
@@ -70,18 +71,15 @@ const registerUser = async (req, res, next) => {
     }
 }
 
-
+const secretKey = ""
 
 const login = async (req, res, next) => {
     const { email, password } = req.body;
 
+    // console.log(req.body)
     if (!email || !password) {
         return res.status(404).json({ message: "fill all fields" })
     }
-
-
-
-
 
     try {
 
@@ -91,7 +89,18 @@ const login = async (req, res, next) => {
             return res.status(404).json({ message: "invalid credientials" })
         }
 
-        res.cookie("uid", user._id.toString(), {
+
+
+        const cookieData = JSON.stringify({
+            id: user._id.toString(),
+            expiry: Math.round(Date.now() / 1000 + 50)
+        })
+
+        const signature =  crypto.createHash("sha256").update(secretKey).update(cookieData).digest("base64url")
+
+         const signedCookie =`${Buffer.from(cookieData).toString("base64url")}.${signature}` 
+
+        res.cookie("token", signedCookie, {
             httpOnly: true,
             maxAge: 60 * 1000 * 60 * 24 * 7
         })
@@ -116,7 +125,7 @@ const getNameAndEmail = (req, res) => {
 
 
 const logout = (req, res) => {
-    res.clearCookie("uid", {
+    res.clearCookie("token", {
         httpOnly: true,
         maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
         // add secure/sameSite if you used them in login

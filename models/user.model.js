@@ -26,8 +26,6 @@ const userSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "Directory"
     },
-},{
-    timestamps:true
 })
 
 

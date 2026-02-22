@@ -22,8 +22,8 @@ try {
 
 app.use(cookieParser())
 app.use(cors({
-  origin:"http://localhost:5173",
-  credentials:true
+  origin: "http://localhost:5173",
+  credentials: true
 }));
 app.use(express.json());
 
@@ -32,18 +32,18 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-app.locals.storageBase = path.join(__dirname,"storage")
+app.locals.storageBase = path.join(__dirname, "storage")
 
-app.use('/directory',checkAuth,directoryRoutes)
-app.use('/file',checkAuth,fileRoutes)
-app.use("/user",userRoutes)
+app.use('/directory', checkAuth, directoryRoutes)
+app.use('/file', checkAuth, fileRoutes)
+app.use("/user", userRoutes)
 
 
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
-   error: "Something went wrong"
+    error: "Something went wrong"
   });
 });
 

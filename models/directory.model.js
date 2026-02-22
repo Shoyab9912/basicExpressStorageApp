@@ -15,8 +15,6 @@ const directorySchema = new Schema({
         ref:"Directory",
         default:null
     }
-},{
-    versionKey:false
 }) 
 
 
