@@ -1,182 +1,141 @@
 import path from "node:path";
 import { rm } from "node:fs/promises";
-import { createWriteStream, } from "node:fs";
-import File from "../models/file.model.js"
+import { createWriteStream } from "node:fs";
+import File from "../models/file.model.js";
 import Directory from "../models/directory.model.js";
-
-import { ObjectId } from "mongodb";
-
-
+import { NotFoundError, ValidationError } from "../utils/errors.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase)
-
-  const target = path.resolve(base, part)
+  const base = path.resolve(req.app.locals.storageBase);
+  const target = path.resolve(base, part);
 
   if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new Error("invalid path")
+    throw new Error("Invalid path");
   }
 
-  return target
+  return target;
 }
 
 
-
-const serveOrDownloadFile = async (req, res) => {
+const serveOrDownloadFile = asyncHandler(async (req, res) => {
   const { id } = req.params;
-
   const user = req.user;
 
+  const file = await File.findOne({ _id: id, userId: user._id });
 
+  if (!file) throw new NotFoundError("File doesn't exist");
 
-  const file = await File.findOne({
-    _id: id,
-    userId: user._id
-  })
-
-  if (!file) return res.status(404).json({ message: "no such file exists" })
-
-  const filePath = safeStoragePath(req, id)
+  const filePath = safeStoragePath(req, id);
 
   if (req.query.action === "download") {
-    return res.download(`${filePath}${file.extension}`, file.name)
+    return res.download(`${filePath}${file.extension}`, file.name);
   }
 
   return res.sendFile(`${filePath}${file.extension}`, (err) => {
     if (!res.headersSent && err) {
-      return res.status(404).json({
-        message: "File not found",
-      });
+      throw new NotFoundError("File not found"); 
     }
   });
-}
+});
 
 
-
-const uploadFile = async (req, res, next) => {
+const uploadFile = asyncHandler(async (req, res, next) => {
   const user = req.user;
-
-
 
   const parentDirId = req.params.parentDirId ?? user.rootDirId;
 
-  if (!parentDirId) {
-    return res.status(400).json({
-      message: "id doesn't exist"
-    })
+  const dirData = await Directory.findOne({
+    _id: parentDirId,
+    userId: user._id
+  });
+
+  if (!dirData) {
+    throw new NotFoundError("Directory doesn't exist"); // ✅ check after query
   }
 
-  try {
+  const fileName = req.headers.filename || "file";
+  const extension = path.extname(fileName);
 
-    const dirData = await Directory.findOne({
-      _id: parentDirId,
-      userId: user._id
-    })
+  const fileData = await File.insertOne({
+    extension,
+    name: fileName,
+    userId: user._id,
+    parentDirId: dirData._id
+  });
 
-    const fileName = req.headers.filename || "file"
-    // console.log(parentDirId)
+  const fileId = fileData.id;
+  const fullPath = `./storage/${fileId}${extension}`;
+  const writeStream = createWriteStream(fullPath);
 
-    const extension = path.extname(fileName)
+  req.pipe(writeStream);
 
-    const fileData = await File.insertOne({
-      extension,
-      name: fileName,
-      userId: user._id,
-      parentDirId: dirData._id
-    })
-   console.log(fileData)
-    const fileId = fileData.id
-    const fullPath = `${fileId}${extension}`
-    const writeStream = createWriteStream(`./storage/${fullPath}`)
-    req.pipe(writeStream)
-    req.on("end", () => {
-      return res.status(201).json({
-        message: "file uploaded successfully"
-      })
-    })
-    req.on("error", async (err) => {
-      const filePath = safeStoragePath(req, fileId)
-      await rm(`${filePath}${fileData.extension}`, { force: true });
+  writeStream.on("finish", () => {
+    return res.status(201).json(new ApiResponse(201, "File uploaded successfully"));
+  });
 
-      await File.findByIdAndDelete(fileData.id)
-      next(err)
-    })
-  } catch (err) {
-    console.error("error", err.message)
-    next(err)
+  writeStream.on("error", async (err) => {
+    await rm(fullPath, { force: true });
+    await File.findByIdAndDelete(fileId);
+    next(err);
+  });
+
+  req.on("error", async (err) => {
+    await rm(fullPath, { force: true });
+    await File.findByIdAndDelete(fileId);
+    next(err);
+  });
+});
+
+const renameFile = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const { id } = req.params;
+  const { newFilename } = req.body;
+
+  if (!newFilename || !newFilename.trim()) {
+    throw new ValidationError("Filename is required"); 
   }
 
-}
+  const renamedFile = await File.findOneAndUpdate(
+    { _id: id, userId: user._id },
+    { $set: { name: newFilename } },
+    { returnDocument: "after" }
+  );
 
-
-const renameFile = async (req, res, next) => {
-  try {
-    const user = req.user;
-    const { id } = req.params;
-    const { newFilename } = req.body
-
-    if (!newFilename || !newFilename.trim()) {
-      return res.status(400).json({
-        message: "Invalid filename"
-      });
-    }
-
-
-    await File.findOneAndUpdate({
-      _id: id,
-      userId: user._id
-    }, {
-      $set: {
-        name: newFilename
-      }
-    }, {
-      returnDocument: "after"
-    })
-
-    return res.status(200).json({
-      message: "file renamed successfully",
-    });
-  } catch (error) {
-    next(error)
+  if (!renamedFile) {
+    throw new NotFoundError("File");
   }
-}
 
 
+  return res.status(200).json(new ApiResponse(200, "File renamed successfully", renamedFile));
+});
 
-const deleteFile = async (req, res, next) => {
+
+const deleteFile = asyncHandler(async (req, res) => { 
   const user = req.user;
   const { id } = req.params;
 
+  const file = await File.findOne({
+    _id: id,
+    userId: user._id
+  }).select("extension");
 
-  try {
-
-    const file = await File.findOne({
-      _id: id,
-      userId: user._id
-    }).select(' extension ')
-
-    if (!file) {
-      return res.status(404).json({
-        message: "file doesn't exists"
-      })
-    }
-
-    const filePath = safeStoragePath(req, id)
-    await file.deleteOne()
-    await rm(`${filePath}${file.extension}`, { force: true });
-
-    return res.status(204).json({
-      message: "successfully removed",
-    });
-  } catch (error) {
-    next(error)
+  if (!file) {
+    throw new NotFoundError("File doesn't exist");
   }
-}
 
+  const filePath = safeStoragePath(req, id);
+  await file.deleteOne();
+  await rm(`${filePath}${file.extension}`, { force: true });
+
+  
+  return res.status(204).json(new ApiResponse(204, "File deleted successfully"));
+});
 
 export {
   serveOrDownloadFile,
   uploadFile,
   renameFile,
   deleteFile
-}
+};

@@ -2,156 +2,117 @@ import mongoose from "mongoose"
 import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
 import crypto from "node:crypto";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
 
+const userRegister = asyncHandler(async (req, res) => {
+  const { email, password, name } = req.body;
 
+  if ([email, password, name].some(f => !f || f.trim() === "")) {
+    throw new ValidationError("All fields are required");
+  }
 
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-const registerUser = async (req, res, next) => {
+  try {
+    const user = await User.findOne({ email });
 
-    const { email, password, name } = req.body;
-
-    if ([email, password, name].some(f => f.trim() === "")) {
-        return res.status(404).json({
-            succcess: false,
-            message: 'fill all fields'
-        })
+    if (user) {
+      throw new ConflictError("User already exists");
     }
 
+    const hashedPassword = crypto.createHash('sha256').update(password).digest("hex");
 
+    const userId = new mongoose.Types.ObjectId();
+    const rootDirId = new mongoose.Types.ObjectId();
 
+    await Directory.insertOne({
+      _id: rootDirId,
+      parentDirId: null,
+      name: `root-${email}`,
+      userId
+    }, { session });
 
-    const session = await mongoose.startSession()
-    session.startTransaction()
+    await User.insertOne({
+      _id: userId,
+      name,
+      email,
+      password: hashedPassword,
+      rootDirId
+    }, { session });
 
+    await session.commitTransaction();
 
-    try {
-        const user = await User.findOne({ email })
+    return res.status(201).json(new ApiResponse(201, "Successfully user registered"));
 
-        if (user) {
-            return res.status(409).json({
-                message: "user already exists"
-            })
-        }
-
-        const hashedPassword = crypto.createHash('sha256').update(password).digest("hex")
-        console.log(hashedPassword)
-
-        const userId = new mongoose.Types.ObjectId()
-        const rootDirId = new mongoose.Types.ObjectId()
-
-        await Directory.insertOne({
-            _id: rootDirId,
-            parentDirId: null,
-            name: `root-${email}`,
-            userId
-        }, { session })
-
-        await User.insertOne({
-            _id: userId,
-            name,
-            email,
-            password: hashedPassword,
-            rootDirId
-        }, { session })
-
-        await session.commitTransaction()
-
-        return res.status(201).json({
-            sucess: true,
-            message: "succesfully created"
-        })
-    } catch (err) {
-        await session.abortTransaction()
-        console.log(err)
-        if (err.code === 121) {
-            return res.status(400).json({
-                error: "invalid fields"
-            })
-        } else {
-            console.log(err)
-            next(err)
-        }
-
-    } finally {
-        await session.endSession()
+  } catch (err) {
+    await session.abortTransaction();
+    if (err.code === 121) {
+      throw new ValidationError("Invalid fields");
     }
-}
+    throw err;
 
+  } finally {
+    await session.endSession();
+  }
+});
 
+const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-const login = async (req, res, next) => {
-    const { email, password } = req.body;
+  if ([email, password].some(f => !f || f.trim() === "")) {
+    throw new ValidationError("All fields are required");
+  }
 
-    // console.log(req.body)
-    if (!email || !password) {
-        return res.status(404).json({ message: "fill all fields" })
-    }
+  const user = await User.findOne({ email });
 
-    try {
+  if (!user) {
+    throw new UnauthorizedError("Invalid credentials");
+  }
 
-        const user = await User.findOne({ email })
+  const hashedPassword = crypto.createHash('sha256').update(password).digest("hex");
 
-        if (!user) {
-            return res.status(404).json({ message: "invalid credientials" })
-        }
+  if (user.password !== hashedPassword) {
+    throw new UnauthorizedError("Invalid credentials");
+  }
 
+  const cookieData = JSON.stringify({
+    id: user._id.toString(),
+    expiry: Math.round(Date.now() / 1000 * 60)
+  });
 
-        const hashedPassword = crypto.createHash('sha256').update(password).digest("hex")
-   
-         if(user.password !== hashedPassword) {
-            return res.status(404).json({
-                errror:"invalid credientials"
-            })
-         }
+  res.cookie("token", cookieData, {
+    signed: true,
+    httpOnly: true,
+    maxAge: 60 * 1000 * 60 * 24 * 7
+  });
 
+  
+  return res.status(200).json(new ApiResponse(200, "Login successful"));
+});
 
-
-        const cookieData = JSON.stringify({
-            id: user._id.toString(),
-            expiry: Math.round(Date.now() / 1000 * 60)
-        })
-
-
-        res.cookie("token", cookieData, {
-            signed: true,
-            httpOnly: true,
-            maxAge: 60 * 1000 * 60 * 24 * 7
-        })
-
-        return res.status(201).json({
-            message: 'logged in'
-        })
-    } catch (err) {
-        err.message = "login unsuucessfull"
-        next(err)
-    }
-
-}
-
-
-const getNameAndEmail = (req, res) => {
-    return res.status(200).json({
-        name: req.user.name,
-        email: req.user.email
+const getNameAndEmail = asyncHandler(async (req, res) => {
+  return res.status(200).json(
+    new ApiResponse(200, "User fetched", {
+      name: req.user.name,
+      email: req.user.email
     })
-}
-
+  );
+});
 
 const logout = (req, res) => {
-    res.clearCookie("token", {
-        httpOnly: true,
-        maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
-        // add secure/sameSite if you used them in login
-    });
-    return res.sendStatus(204);
-}
-
-
+  res.clearCookie("token", {
+    httpOnly: true,
+    signed: true,
+  });
+  return res.sendStatus(204);
+};
 
 export {
-    registerUser,
-    login,
-    getNameAndEmail,
-    logout
-
-}
+  userRegister,   
+  login,
+  getNameAndEmail,
+  logout
+};

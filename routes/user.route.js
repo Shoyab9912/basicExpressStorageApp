@@ -1,11 +1,11 @@
 import express from "express";
-import { getNameAndEmail, login, logout, registerUser } from "../controllers/user.controller.js";
-import checkAuth from "../middlewares/auth.js"
+import { getNameAndEmail, login, logout, userRegister } from "../controllers/user.controller.js";
+import checkAuth from "../middlewares/auth.middleware.js"
 
 
 const router = express.Router();
 
-router.post('/register',registerUser)
+router.post('/register',userRegister)
 
 router.post("/login",login)
 

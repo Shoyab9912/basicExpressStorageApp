@@ -6,20 +6,12 @@ import { fileURLToPath } from "node:url";
 import fileRoutes from "./routes/file.route.js"
 import directoryRoutes from "./routes/directory.route.js"
 import userRoutes from "./routes/user.route.js"
-import checkAuth from "./middlewares/auth.js"
 import connectDb from "./config/db.js"
-
+import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 
 const secretKey = "fff"
 
 const app = express();
-try {
-  await connectDb();
-  console.log("Database connected successfully");
-} catch (err) {
-  console.error("Failed to connect DB:", err);
-  process.exit(1); // stop server if DB fails
-}
 
 
 app.use(cookieParser(secretKey))
@@ -36,21 +28,23 @@ const __dirname = path.dirname(__filename)
 
 app.locals.storageBase = path.join(__dirname, "storage")
 
-app.use('/directory', checkAuth, directoryRoutes)
-app.use('/file', checkAuth, fileRoutes)
+app.use('/directory',directoryRoutes)
+app.use('/file',fileRoutes)
 app.use("/user", userRoutes)
 
 
 
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: "Something went wrong"
+
+
+app.use(errorHandler)
+
+connectDb().then(() => {
+    console.log("DB connection successful");
+    app.listen(4000, () => {
+      console.log("Server is listening on port 4000");
+    });
+  })
+  .catch((err) => {
+    console.error("DB connection failed:", err);
+    process.exit(1);
   });
-});
-
-
-
-app.listen(4000, () => {
-  console.log("server is listening");
-});
