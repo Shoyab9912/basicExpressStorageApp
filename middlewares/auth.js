@@ -1,50 +1,21 @@
-import { ObjectId } from "mongodb";
+
 import User from "../models/user.model.js"
-import crypto from "node:crypto"
 
-
-const secretKey = ""
 
 
 export default async function checkAuth(req, res, next) {
   try {
-    let token = req.cookies.token;
-
+    let token = req.signedCookies.token;
+     console.log(req.signedCookies)
     if (!token) {
       return res.status(400).json({ error: "invalid token" });
     }
 
         
-    const [data, oldSignature] = token.split('.')
-    //  console.log(data)
-   const cookieData = Buffer.from(data,"base64url").toString()
-  
-    //  console.log(cookieData, oldSignature)
-
-     const newSignature =  crypto.createHash("sha256").update(secretKey).update(cookieData).digest("base64url")
-    
-
-     if(oldSignature !== newSignature) {
-        return res.clearCookie("token", {
-        httpOnly: true,
-        maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
-        // add secure/sameSite if you used them in login
-      });
-     }
-
-  console.log(cookieData)
-     const {id , expiry:expireTime } = JSON.parse(cookieData)
+     const {id , expiry:expireTime } = JSON.parse(token)
     
   
     const currentTime = Math.round(Date.now() / 1000)
- // console.log(expireTime, currentTime)
-
-    // Reject if token is missing or not a valid ObjectId
-    //  console.log(token.length)
-
-
-
-
 
     if (expireTime <= currentTime) {
       res.clearCookie("token", {

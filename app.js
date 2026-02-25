@@ -10,6 +10,8 @@ import checkAuth from "./middlewares/auth.js"
 import connectDb from "./config/db.js"
 
 
+const secretKey = "fff"
+
 const app = express();
 try {
   await connectDb();
@@ -20,7 +22,7 @@ try {
 }
 
 
-app.use(cookieParser())
+app.use(cookieParser(secretKey))
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true

@@ -1,8 +1,13 @@
 
-import connectDb, { client } from "./db.js"
+// import connectDb, { client } from "./db.js"
+
+import mongoose from "mongoose"
+import connectDb from "./db.js"
 
 
-const db = await connectDb();
+await connectDb();
+const db = mongoose.connection.db 
+ 
 
 const command = 'collMod'
 
@@ -35,6 +40,9 @@ await db.command({
                 },
                 rootDirId: {
                     bsonType: 'objectId'
+                },
+                __v: {
+                  bsonType:'int'
                 }
             },
             additionalProperties:false
@@ -70,6 +78,9 @@ await db.command({
       },
       userId: {
         bsonType: 'objectId'
+      },
+      __v: {
+        bsonType:'int'
       }
     },
   
@@ -106,6 +117,9 @@ await db.command({
       },
       userId: {
         bsonType: 'objectId'
+      },
+      __v:{
+        bsonType:"int"
       }
     },
     additionalProperties : false
@@ -114,4 +128,4 @@ await db.command({
 })
 
 
-client.close()
+mongoose.disconnect()

@@ -1,9 +1,11 @@
 import mongoose from "mongoose"
-import { Buffer } from "buffer"
-// import { client } from "../config/db.js";
 import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
-import crypto from "node:crypto"
+import crypto from "node:crypto";
+
+
+
+
 const registerUser = async (req, res, next) => {
 
     const { email, password, name } = req.body;
@@ -31,6 +33,9 @@ const registerUser = async (req, res, next) => {
             })
         }
 
+        const hashedPassword = crypto.createHash('sha256').update(password).digest("hex")
+        console.log(hashedPassword)
+
         const userId = new mongoose.Types.ObjectId()
         const rootDirId = new mongoose.Types.ObjectId()
 
@@ -45,7 +50,7 @@ const registerUser = async (req, res, next) => {
             _id: userId,
             name,
             email,
-            password,
+            password: hashedPassword,
             rootDirId
         }, { session })
 
@@ -63,6 +68,7 @@ const registerUser = async (req, res, next) => {
                 error: "invalid fields"
             })
         } else {
+            console.log(err)
             next(err)
         }
 
@@ -71,7 +77,7 @@ const registerUser = async (req, res, next) => {
     }
 }
 
-const secretKey = ""
+
 
 const login = async (req, res, next) => {
     const { email, password } = req.body;
@@ -83,24 +89,31 @@ const login = async (req, res, next) => {
 
     try {
 
-        const user = await User.findOne({ email, password })
+        const user = await User.findOne({ email })
 
         if (!user) {
             return res.status(404).json({ message: "invalid credientials" })
         }
 
 
+        const hashedPassword = crypto.createHash('sha256').update(password).digest("hex")
+   
+         if(user.password !== hashedPassword) {
+            return res.status(404).json({
+                errror:"invalid credientials"
+            })
+         }
+
+
 
         const cookieData = JSON.stringify({
             id: user._id.toString(),
-            expiry: Math.round(Date.now() / 1000 + 50)
+            expiry: Math.round(Date.now() / 1000 * 60)
         })
 
-        const signature =  crypto.createHash("sha256").update(secretKey).update(cookieData).digest("base64url")
 
-         const signedCookie =`${Buffer.from(cookieData).toString("base64url")}.${signature}` 
-
-        res.cookie("token", signedCookie, {
+        res.cookie("token", cookieData, {
+            signed: true,
             httpOnly: true,
             maxAge: 60 * 1000 * 60 * 24 * 7
         })
