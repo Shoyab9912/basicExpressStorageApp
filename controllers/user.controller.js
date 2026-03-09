@@ -1,7 +1,6 @@
 import mongoose from "mongoose"
 import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
-import crypto from "node:crypto";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
@@ -23,7 +22,7 @@ const userRegister = asyncHandler(async (req, res) => {
       throw new ConflictError("User already exists");
     }
 
-    const hashedPassword = crypto.createHash('sha256').update(password).digest("hex");
+
 
     const userId = new mongoose.Types.ObjectId();
     const rootDirId = new mongoose.Types.ObjectId();
@@ -39,7 +38,7 @@ const userRegister = asyncHandler(async (req, res) => {
       _id: userId,
       name,
       email,
-      password: hashedPassword,
+      password,
       rootDirId
     }, { session });
 
@@ -71,11 +70,11 @@ const login = asyncHandler(async (req, res) => {
   if (!user) {
     throw new UnauthorizedError("Invalid credentials");
   }
+ 
+  const isPasswordMatched = await user.verifyPassword(password)
 
-  const hashedPassword = crypto.createHash('sha256').update(password).digest("hex");
-
-  if (user.password !== hashedPassword) {
-    throw new UnauthorizedError("Invalid credentials");
+  if(!isPasswordMatched) {
+    throw new UnauthorizedError("Invalid Credentials")
   }
 
   const cookieData = JSON.stringify({

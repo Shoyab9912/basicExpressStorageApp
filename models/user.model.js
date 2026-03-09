@@ -1,11 +1,11 @@
 import { Schema, model } from "mongoose"
-
+import bcrypt from "bcryptjs"
 
 const userSchema = new Schema({
     email: {
         type: String,
         required: [true, "Enter email field"],
-        unique:true,
+        unique: true,
         validate: {
             validator: function (v) {
                 return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
@@ -28,7 +28,15 @@ const userSchema = new Schema({
     },
 })
 
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next()
+    this.password = await bcrypt.hash(this.password, 10)
+})
 
-const  User = model("User",userSchema)
+userSchema.methods.verifyPassword = async function (password) {
+    return await bcrypt.compare(password,this.password)
+}
+
+const User = model("User", userSchema)
 
 export default User;
