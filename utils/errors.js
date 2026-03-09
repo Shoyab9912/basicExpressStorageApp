@@ -4,7 +4,7 @@ import { ApiError } from "./ApiError.js";
 
 class NotFoundError extends ApiError {
     constructor(message="resource not found") {
-        super(404,message)
+        super(404, message)
     }
 }
 
@@ -12,19 +12,19 @@ class NotFoundError extends ApiError {
 
 class BadRequestError extends ApiError {
   constructor(message = 'Bad request') {
-    super(message, 400);
+    super(400, message);
   }
 }
 
 class ValidationError extends ApiError {
   constructor(message = 'Validation failed') {
-    super(message, 400);
+    super(422, message);
   }
 }
 
 class UnauthorizedError extends ApiError {
   constructor(message = 'Unauthorized') {
-    super(message, 401);
+    super(401, message);
   }
 }
 
@@ -32,7 +32,7 @@ class UnauthorizedError extends ApiError {
 
 class ConflictError extends ApiError {
   constructor(message = 'Conflict') {
-    super(message, 409);
+    super(409, message);
   }
 }
 

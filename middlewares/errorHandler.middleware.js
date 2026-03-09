@@ -2,7 +2,7 @@
 
 
 const errorHandler = (err, req, res, next) => {
-    console.error(`${err.name} ${err.message}`)
+    console.error(`${err.name} ${err.message} stack: ${err.stack}`);
 
     if (err.code === 11000) {
         const field = Object.keys(err.keyValue)[0];
@@ -31,20 +31,10 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
-
-    if (err.code === 11000) {
-        const field = Object.keys(err.keyValue)[0];
-        return res.status(409).json({
-            status: 'error',
-            message: `${field} already exists`,
-        });
-    }
-
-
     return res.status(500).json({
         status: "error",
         error: err.message,
-        stack:err.stack
+        stack: process.env.NODE_ENV === 'production' ? "something went wrong": err.stack,
     })
 
 }

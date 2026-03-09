@@ -57,7 +57,8 @@ const createDirectory = asyncHandler(async (req, res) => {
 });
 
 const updateDirectoryName = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+
+  const { dirId } = req.params;
   const { newDirName } = req.body;
   const user = req.user;
 
@@ -65,16 +66,13 @@ const updateDirectoryName = asyncHandler(async (req, res) => {
     throw new ValidationError("Directory name is required");
   }
 
-  const dirData = await Directory.findOneAndUpdate(
-    { _id: id, userId: user._id },
-    { $set: { name: newDirName } },
-    { returnDocument: "after" }
+  const dirData = await Directory.findByIdAndUpdate(
+    { _id: dirId, userId: user._id },
+    { name: newDirName },
+    { new: true }
   );
-
-  if (!dirData) {
-    throw new NotFoundError("Directory");
-  }
-
+ 
+  console.log("updated dir data", dirData)
   return res.status(200).json(
     new ApiResponse(200, "Directory renamed successfully", dirData)
   );

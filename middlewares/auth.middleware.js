@@ -1,30 +1,25 @@
 
 import User from "../models/user.model.js"
-
+import Session from "../models/session.model.js";
 
 
 export default async function checkAuth(req, res, next) {
   try {
-    let token = req.signedCookies.token;
-     console.log(req.signedCookies)
-    if (!token) {
-      return res.status(400).json({ error: "invalid token" });
+    let sid = req.signedCookies.sessionId;
+     
+    if (!sid) {
+      return res.status(400).json({ error: "invalid session ID" });
     }
 
         
-     const {id , expiry:expireTime } = JSON.parse(token)
+     const session = await Session.findById(sid);
+
+     if (!session) {
+      return res.status(401).json({ error: "unauthorized access" });
+    }
     
   
-    const currentTime = Math.round(Date.now() / 1000)
-
-    if (expireTime <= currentTime) {
-      res.clearCookie("token", {
-        httpOnly: true,
-        maxAge: 60 * 1000 * 60 * 24 * 7, // match login options
-        // add secure/sameSite if you used them in login
-      });
-    }
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(session.userId).select("-password");
 
     if (!user) {
       return res.status(401).json({ error: "unauthorized access" });
