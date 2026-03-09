@@ -3,6 +3,7 @@ import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import Session from "../models/session.model.js";
 import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
 
 const userRegister = asyncHandler(async (req, res) => {
@@ -77,12 +78,14 @@ const login = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("Invalid Credentials")
   }
 
-  const cookieData = JSON.stringify({
-    id: user._id.toString(),
-    expiry: Math.round(Date.now() / 1000 * 60)
-  });
+  const session = await Session.create({ userId: user._id });
 
-  res.cookie("token", cookieData, {
+  // const cookieData = JSON.stringify({
+  //   id: user._id.toString(),
+  //   expiry: Math.round(Date.now() / 1000 * 60)
+  // });
+
+  res.cookie("sessionId", session.id, {
     signed: true,
     httpOnly: true,
     maxAge: 60 * 1000 * 60 * 24 * 7
