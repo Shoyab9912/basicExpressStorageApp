@@ -113,17 +113,28 @@ const getNameAndEmail = asyncHandler(async (req, res) => {
   );
 });
 
-const logout = (req, res) => {
-  res.clearCookie("token", {
+const logout = asyncHandler(async (req, res) => {
+  await Session.findByIdAndDelete(req.signedCookies.sessionId);
+  res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
   });
   return res.sendStatus(204);
-};
+});
+
+const logoutAll = asyncHandler(async (req, res) => {
+  await Session.deleteMany({ userId: req.user._id });
+  res.clearCookie("sessionId", {
+    httpOnly: true,
+    signed: true,
+  });
+  return res.sendStatus(204);
+});
 
 export {
   userRegister,   
   login,
   getNameAndEmail,
-  logout
+  logout,
+  logoutAll
 };
