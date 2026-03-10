@@ -12,9 +12,9 @@ async function connect() {
     }
 }
 
-process.on("SIGINT",()=> {
+process.on("SIGINT",async ()=> {
     console.log("connection closed")
-    mongoose.disconnect()
+    await mongoose.disconnect()
     process.exit(0)
 })
 
