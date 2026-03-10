@@ -1,4 +1,8 @@
 import express from "express";
+import dotenv from "dotenv";
+dotenv.config({
+  path: path.resolve(process.cwd(), ".env")
+});
 import cors from "cors";
 import path from "path"
 import cookieParser from "cookie-parser";
@@ -9,14 +13,14 @@ import userRoutes from "./routes/user.route.js"
 import connectDb from "./config/db.js"
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 
-const secretKey = "fff"
+
 
 const app = express();
 
 
-app.use(cookieParser(secretKey))
+app.use(cookieParser(process.env.COOKIE_SECRET))
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: process.env.CORS_ORIGIN,
   credentials: true
 }));
 app.use(express.json());
@@ -40,8 +44,8 @@ app.use(errorHandler)
 
 connectDb().then(() => {
     console.log("DB connection successful");
-    app.listen(4000, () => {
-      console.log("Server is listening on port 4000");
+    app.listen(process.env.PORT, () => {
+      console.log("Server is listening on port " + process.env.PORT);
     });
   })
   .catch((err) => {

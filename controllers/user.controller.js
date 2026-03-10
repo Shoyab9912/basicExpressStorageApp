@@ -82,7 +82,7 @@ const login = asyncHandler(async (req, res) => {
 
   // const cookieData = JSON.stringify({
   //   id: user._id.toString(),
-  //   expiry: Math.round(Date.now() / 1000 * 60)
+  //   expiry: Mround(Date.now() / 1000 * 60)ath.
   // });
 
   res.cookie("sessionId", session.id, {
