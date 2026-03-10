@@ -4,14 +4,23 @@ import User from "../models/user.model.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import Session from "../models/session.model.js";
+import OTP from "../models/otp.model.js";
 import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
 
 const userRegister = asyncHandler(async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name,otp } = req.body;
 
-  if ([email, password, name].some(f => !f || f.trim() === "")) {
+  if ([email, password, name,otp].some(f => !f || f.trim() === "")) {
     throw new ValidationError("All fields are required");
   }
+
+   const isOtpExists =  await OTP.findOne({email,otp}).lean()
+
+   if(!isOtpExists) {
+     throw new NotFoundError("Invalid OTP or OTP has expired")
+   }
+
+    await OTP.deleteOne({email,otp})
 
   const session = await mongoose.startSession();
   session.startTransaction();

@@ -1,8 +1,4 @@
 import express from "express";
-import dotenv from "dotenv";
-dotenv.config({
-  path: path.resolve(process.cwd(), ".env")
-});
 import cors from "cors";
 import path from "path"
 import cookieParser from "cookie-parser";
@@ -10,10 +6,9 @@ import { fileURLToPath } from "node:url";
 import fileRoutes from "./routes/file.route.js"
 import directoryRoutes from "./routes/directory.route.js"
 import userRoutes from "./routes/user.route.js"
+import authRoutes from "./routes/auth.route.js"
 import connectDb from "./config/db.js"
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
-
-
 
 const app = express();
 
@@ -35,7 +30,7 @@ app.locals.storageBase = path.join(__dirname, "storage")
 app.use('/directory',directoryRoutes)
 app.use('/file',fileRoutes)
 app.use("/user", userRoutes)
-
+app.use("/auth", authRoutes)
 
 
 
