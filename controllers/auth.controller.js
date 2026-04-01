@@ -24,7 +24,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
         throw new ValidationError("OTP is required");
     }
 
-    const otpRecord = await OTP.findOne({ email, otp }).lean();
+    const otpRecord = await OTP.exists({ email, otp });
     if (!otpRecord) {
         throw new ValidationError("Invalid OTP");
     }

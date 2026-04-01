@@ -6,6 +6,7 @@ import Directory from "../models/directory.model.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -19,11 +20,30 @@ function safeStoragePath(req, part) {
 }
 
 
-const serveOrDownloadFile = asyncHandler(async (req, res) => {
+const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
 
-  const file = await File.findOne({ _id: id, userId: user._id });
+  const file = await File.findOne({ _id: id, userId: user._id }).lean();
+
+  if (!file) throw new NotFoundError("File doesn't exist");
+
+  const filePath = safeStoragePath(req, id);
+
+  return res.sendFile(`${filePath}${file.extension}`, (err) => {
+    if (!res.headersSent && err) {
+      next(new NotFoundError("File not found"));
+    }
+  });
+});
+
+
+
+const downloadFile = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  const file = await File.findOne({ _id: id, userId: user._id }).lean();
 
   if (!file) throw new NotFoundError("File doesn't exist");
 
@@ -33,11 +53,6 @@ const serveOrDownloadFile = asyncHandler(async (req, res) => {
     return res.download(`${filePath}${file.extension}`, file.name);
   }
 
-  return res.sendFile(`${filePath}${file.extension}`, (err) => {
-    if (!res.headersSent && err) {
-      throw new NotFoundError("File not found"); 
-    }
-  });
 });
 
 
@@ -49,24 +64,24 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   const dirData = await Directory.findOne({
     _id: parentDirId,
     userId: user._id
-  });
+  }).lean()
 
   if (!dirData) {
-    throw new NotFoundError("Directory doesn't exist"); // ✅ check after query
+    throw new NotFoundError("Directory doesn't exist");
   }
 
-  const fileName = req.headers.filename || "file";
+  const fileName = path.basename(req.headers.filename || "file");
   const extension = path.extname(fileName);
 
-  const fileData = await File.insertOne({
+  const fileData = await File.create({
     extension,
     name: fileName,
     userId: user._id,
     parentDirId: dirData._id
   });
 
-  const fileId = fileData.id;
-  const fullPath = `./storage/${fileId}${extension}`;
+  const fileId = fileData._id.toString();
+  const fullPath = safeStoragePath(req, `${fileId}${extension}`);
   const writeStream = createWriteStream(fullPath);
 
   req.pipe(writeStream);
@@ -94,13 +109,13 @@ const renameFile = asyncHandler(async (req, res) => {
   const { newFilename } = req.body;
 
   if (!newFilename || !newFilename.trim()) {
-    throw new ValidationError("Filename is required"); 
+    throw new ValidationError("Filename is required");
   }
 
   const renamedFile = await File.findOneAndUpdate(
     { _id: id, userId: user._id },
     { $set: { name: newFilename } },
-    { returnDocument: "after" }
+    { returnDocument: "after", projection: { name: 1, extension: 1 } }
   );
 
   if (!renamedFile) {
@@ -112,7 +127,7 @@ const renameFile = asyncHandler(async (req, res) => {
 });
 
 
-const deleteFile = asyncHandler(async (req, res) => { 
+const deleteFile = asyncHandler(async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 
@@ -120,21 +135,28 @@ const deleteFile = asyncHandler(async (req, res) => {
     _id: id,
     userId: user._id
   }).select("extension");
-
+  console.log(file)
   if (!file) {
     throw new NotFoundError("File doesn't exist");
   }
 
   const filePath = safeStoragePath(req, id);
-  await file.deleteOne();
   await rm(`${filePath}${file.extension}`, { force: true });
 
-  
-  return res.status(204).json(new ApiResponse(204, "File deleted successfully"));
+  const f = await File.deleteOne({ _id: file._id });
+
+  if (f.deletedCount === 0) {
+    throw new ApiError(500, "Internal server error")
+  }
+
+
+
+  return res.status(204).send()
 });
 
 export {
-  serveOrDownloadFile,
+  serveFile,
+  downloadFile,
   uploadFile,
   renameFile,
   deleteFile

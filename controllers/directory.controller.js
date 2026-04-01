@@ -4,13 +4,26 @@ import Directory from "../models/directory.model.js";
 import File from "../models/file.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
-import {ApiResponse} from "../utils/ApiResponse.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import path from "node:path"
+
+
+function safeStoragePath(req, part) {
+  const base = path.resolve(req.app.locals.storageBase);
+  const target = path.resolve(base, part);
+
+  if (base !== target && !target.startsWith(base + path.sep)) {
+    throw new Error("Invalid path");
+  }
+
+  return target;
+}
 
 const getDirectory = asyncHandler(async (req, res) => {
   const user = req.user;
   const id = req.params.id ?? user.rootDirId;
 
-  const dirData = await Directory.findById(id).lean();
+  const dirData = await Directory.findOne({ _id: id, userId: user._id }).lean();
 
   if (!dirData) {
     throw new NotFoundError("Directory not found");
@@ -22,8 +35,8 @@ const getDirectory = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(200, "Directory fetched", {
       ...dirData,
-      files: files.map(file => ({ ...file, id: file._id })),
-      directories: directories.map(dir => ({ ...dir, id: dir._id })),
+      files: files.map(({ _id, ...rest }) => ({ id: _id, ...rest })),
+      directories: directories.map(({ _id, ...rest }) => ({ id: _id, ...rest })),
     })
   );
 });
@@ -66,13 +79,15 @@ const updateDirectoryName = asyncHandler(async (req, res) => {
     throw new ValidationError("Directory name is required");
   }
 
-  const dirData = await Directory.findByIdAndUpdate(
+  const dirData = await Directory.findOneAndUpdate(
     { _id: dirId, userId: user._id },
     { name: newDirName },
     { new: true }
   );
- 
-  console.log("updated dir data", dirData)
+
+  if (!dirData) {
+    throw new NotFoundError("directory doesn't exists")
+  }
   return res.status(200).json(
     new ApiResponse(200, "Directory renamed successfully", dirData)
   );
@@ -96,15 +111,18 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
 
 
   if (files.length > 0) {
-    for (let { _id, extension } of files) {
-      await rm(`./storage/${_id.toString()}${extension}`, { force: true });
-    }
 
     await File.deleteMany({
       _id: { $in: files.map(f => f._id) },
     });
-  }
 
+    for (let { _id, extension } of files) {
+      const filePath = safeStoragePath(req, `${_id.toString()}${extension}`);
+      await rm(filePath, { force: true });
+    }
+
+
+  }
 
   await Directory.deleteMany({
     _id: { $in: [...directories.map(d => d._id), dirData._id] },

@@ -8,25 +8,26 @@ import OTP from "../models/otp.model.js";
 import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
 
 const userRegister = asyncHandler(async (req, res) => {
-  const { email, password, name,otp } = req.body;
+  const { email, password, name, otp } = req.body;
 
-  if ([email, password, name,otp].some(f => !f || f.trim() === "")) {
+  if ([email, password, name, otp].some(f => !f || f.trim() === "")) {
     throw new ValidationError("All fields are required");
   }
 
-   const isOtpExists =  await OTP.findOne({email,otp}).lean()
 
-   if(!isOtpExists) {
-     throw new NotFoundError("Invalid OTP or OTP has expired")
-   }
+  const isOtpExists = await OTP.exists({ email, otp })
 
-    await OTP.deleteOne({email,otp})
+  if (!isOtpExists) {
+    throw new NotFoundError("Invalid OTP or OTP has expired")
+  }
+
+  await OTP.deleteOne({ email, otp })
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.exists({ email })
 
     if (user) {
       throw new ConflictError("User already exists");
@@ -37,20 +38,20 @@ const userRegister = asyncHandler(async (req, res) => {
     const userId = new mongoose.Types.ObjectId();
     const rootDirId = new mongoose.Types.ObjectId();
 
-    await Directory.insertOne({
+    await Directory.create([{
       _id: rootDirId,
       parentDirId: null,
       name: `root-${email}`,
       userId
-    }, { session });
+    }], { session });
 
-    await User.insertOne({
+    await User.create([{
       _id: userId,
       name,
       email,
       password,
       rootDirId
-    }, { session });
+    }], { session });
 
     await session.commitTransaction();
 
@@ -62,7 +63,6 @@ const userRegister = asyncHandler(async (req, res) => {
       throw new ValidationError("Invalid fields");
     }
     throw err;
-
   } finally {
     await session.endSession();
   }
@@ -75,24 +75,19 @@ const login = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email })
 
   if (!user) {
     throw new UnauthorizedError("Invalid credentials");
   }
- 
+
   const isPasswordMatched = await user.verifyPassword(password)
 
-  if(!isPasswordMatched) {
+  if (!isPasswordMatched) {
     throw new UnauthorizedError("Invalid Credentials")
   }
 
   const session = await Session.create({ userId: user._id });
-
-  // const cookieData = JSON.stringify({
-  //   id: user._id.toString(),
-  //   expiry: Mround(Date.now() / 1000 * 60)ath.
-  // });
 
   res.cookie("sessionId", session.id, {
     signed: true,
@@ -100,7 +95,7 @@ const login = asyncHandler(async (req, res) => {
     maxAge: 60 * 1000 * 60 * 24 * 7
   });
 
-  
+
   return res.status(200).json(new ApiResponse(200, "Login successful"));
 });
 
@@ -118,6 +113,7 @@ const logout = asyncHandler(async (req, res) => {
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
+    maxAge: 60 * 1000 * 60 * 24 * 7
   });
   return res.sendStatus(204);
 });
@@ -127,12 +123,13 @@ const logoutAll = asyncHandler(async (req, res) => {
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
+    maxAge: 60 * 1000 * 60 * 24 * 7
   });
   return res.sendStatus(204);
 });
 
 export {
-  userRegister,   
+  userRegister,
   login,
   getNameAndEmail,
   logout,
