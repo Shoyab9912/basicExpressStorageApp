@@ -107,13 +107,12 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
     throw new NotFoundError("Directory");
   }
 
-  const { files, directories } = await getDirRecursively(dirData._id);
-
+  const { files, allDirIds } = await getDirRecursively(dirData._id)
 
   if (files.length > 0) {
 
     await File.deleteMany({
-      _id: { $in: files.map(f => f._id) },
+      _id: { $in: [...allDirIds, dirData._id] },
     });
 
     for (let { _id, extension } of files) {
@@ -125,7 +124,7 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   }
 
   await Directory.deleteMany({
-    _id: { $in: [...directories.map(d => d._id), dirData._id] },
+    _id: { $in: [...allDirIds, dirData._id] },
   });
 
   return res.status(200).json(
@@ -133,20 +132,35 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   );
 });
 
-async function getDirRecursively(id) {
-  let files = await File.find({ parentDirId: id }, { extension: 1 }).lean();
-  let directories = await Directory.find({ parentDirId: id }, { _id: 1 }).lean();
+async function getDirRecursively(rootId) {
 
-  const currentDirectories = [...directories];
+  const directoriess = await Directory.aggregate([{
+    $match: {
+      _id: rootId
+    }
+  }, {
+    $graphLookup: {
+      from: "directories",
+      connectFromField: "_id",
+      connectToField: "parentDirId",
+      startWith: "$_id",
+      as: "directories"
+    }
+  }])
 
-  for (let { _id } of currentDirectories) {
-    const { files: childFiles, directories: childDirs } = await getDirRecursively(_id);
-    files.push(...childFiles);
-    directories.push(...childDirs);
-  }
+  const allDirIds = directoriess[0].directories.map(({ _id }) => (_id))
 
-  return { files, directories };
+  const files = await File.find({
+    parentDirId: {
+      $in: allDirIds
+    }
+  }, {
+    extension: 1
+  }).lean()
+
+  return { files, allDirIds }
 }
+
 
 export {
   createDirectory,
