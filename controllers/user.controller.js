@@ -103,7 +103,8 @@ const getNameAndEmail = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(200, "User fetched", {
       name: req.user.name,
-      email: req.user.email
+      email: req.user.email,
+      profile : req.user.picture
     })
   );
 });

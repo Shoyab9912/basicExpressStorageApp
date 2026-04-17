@@ -15,7 +15,7 @@ const userSchema = new Schema({
     },
     password: {
         type: String,
-        required: [true, "enter password"],
+        // required: [true, "enter password"],
         minLength: 3
     },
     name: {
@@ -26,11 +26,21 @@ const userSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "Directory"
     },
+    picture : {
+        type:"String",
+        default:"https://cdn-icons-png.flaticon.com/512/149/149071.png"
+    },
+    loginProvider : {
+        type:"String",
+        enum : ["local","google","github"],
+        default:"local"
+    }
 })
 
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next()
-    this.password = await bcrypt.hash(this.password, 10)
+userSchema.pre("save", async function () {
+    if (this.isModified("password"))  {
+        this.password = await bcrypt.hash(this.password, 10)
+    }
 })
 
 userSchema.methods.verifyPassword = async function (password) {

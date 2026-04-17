@@ -15,7 +15,10 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "install": "^0.13.0",
     "mongoose": "^9.2.1",
-    "nodemailer": "^8.0.2"
+    "nodemailer": "^8.0.2",
+    "npm": "^11.12.1"
   }
 }
