@@ -95,4 +95,108 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 })
 
 
-export { sendOTP, verifyOTP, loginWithGoogle }
+const gitHubLogin = asyncHandler(async (req, res) => {
+    const url = `https://github.com/login/oauth/authorize?client_id=${process.env.GIT_CLIENT_ID}&scope=user:email`;
+    res.redirect(url);
+})
+
+const gitHubCallback = asyncHandler(async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+        throw new ValidationError("Code is required");
+    }
+
+    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        },
+        body: JSON.stringify({
+            client_id: process.env.GIT_CLIENT_ID,
+            client_secret: process.env.GIT_SECRET,
+            code
+        })
+    });
+    const tokenData = await tokenResponse.json();
+
+    if (tokenData.error) {
+        throw new Error("GitHub authentication failed")
+    }
+    const accessToken = tokenData.access_token;
+
+    const userResponse = await fetch("https://api.github.com/user", {
+        headers: {
+            "Authorization": `Bearer ${accessToken}`
+        }
+    });
+
+
+    const emailResponse = await fetch("https://api.github.com/user/emails", {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${accessToken}`
+        }
+    });
+
+    const { name, avatar_url } = await userResponse.json();
+    const emailData = await emailResponse.json();
+    const primaryEmailObj = emailData.find(emailObj => emailObj.primary && emailObj.verified);
+
+    if (!primaryEmailObj) {
+        throw new ValidationError("No verified primary email found in GitHub account");
+    }
+    const email = primaryEmailObj.email;
+    // console.log(email, name, avatar_url);
+
+    let user = await User.findOne({ email });
+    let session;
+    if (user) {
+        session = await Session.create({ userId: user._id })
+        console.log(session);
+    } else {
+        const mongooseSession = await mongoose.startSession();
+        mongooseSession.startTransaction();
+        try {
+            const userId = new mongoose.Types.ObjectId();
+            const rootDirId = new mongoose.Types.ObjectId();
+            console.log(userId, rootDirId);
+            user = new User({
+                _id: userId,
+                email,
+                name,
+                picture: avatar_url,
+                rootDirId,
+                loginProvider: "github"
+            })
+            await user.save({ session: mongooseSession });
+            const dir = new Directory({
+                _id: rootDirId,
+                parentDirId: null,
+                name: `root-${email}`,
+                userId
+            })
+            await dir.save({ session: mongooseSession });
+            session = await Session.create([{ userId }], { session: mongooseSession });
+            await mongooseSession.commitTransaction();
+        } catch (err) {
+            await mongooseSession.abortTransaction();
+            throw err;
+        } finally {
+            await mongooseSession.endSession();
+        }
+    }
+
+    res.cookie("sessionId", session._id.toString() ?? session[0]._id.toString(), {
+        signed: true,
+        httpOnly: true,
+        maxAge: 60 * 1000 * 60 * 24 * 7
+    });
+    return res.redirect(process.env.CLIENT_URL);
+})
+
+
+
+
+
+export { sendOTP, verifyOTP, loginWithGoogle, gitHubLogin, gitHubCallback }
