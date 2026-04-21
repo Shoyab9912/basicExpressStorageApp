@@ -84,7 +84,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     }
 
 
-    res.cookie("sessionId", session.id, {
+    res.cookie("sessionId", session._id.toString() ?? session[0]._id.toString(), {
         signed: true,
         httpOnly: true,
         maxAge: 60 * 1000 * 60 * 24 * 7

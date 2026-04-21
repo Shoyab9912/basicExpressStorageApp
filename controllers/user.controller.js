@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose, { isValidObjectId } from "mongoose"
 import Directory from "../models/directory.model.js";
 import User from "../models/user.model.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -104,7 +104,8 @@ const getNameAndEmail = asyncHandler(async (req, res) => {
     new ApiResponse(200, "User fetched", {
       name: req.user.name,
       email: req.user.email,
-      profile : req.user.picture
+      profile : req.user.picture,
+      role:req.user.role
     })
   );
 });
@@ -119,6 +120,9 @@ const logout = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
+
+
+
 const logoutAll = asyncHandler(async (req, res) => {
   await Session.deleteMany({ userId: req.user._id });
   res.clearCookie("sessionId", {
@@ -129,10 +133,29 @@ const logoutAll = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
+const getAllUsers = asyncHandler(async (req, res) => {
+  
+  const users = await User.find().lean().select("name email picture role");
+  const userSessions = await Session.find({ userId: { $in: users.map(u => u._id) } }).lean();
+  const allSessions = new Set(userSessions.map(s => s.userId.toString()));
+  const usersWithStatus = users.map(u => {
+     return {
+      name: u.name,
+      email: u.email,
+      isLoggedIn : allSessions.has(u._id.toString())
+     }
+  })
+ return res.status(200).json(new ApiResponse(200, "Users fetched", usersWithStatus));
+
+})
+
+
+
 export {
   userRegister,
   login,
   getNameAndEmail,
   logout,
-  logoutAll
+  logoutAll,
+  getAllUsers
 };

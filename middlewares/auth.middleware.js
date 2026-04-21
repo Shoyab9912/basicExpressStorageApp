@@ -32,3 +32,12 @@ export default async function checkAuth(req, res, next) {
     return res.status(500).json({ error: "internal server error" });
   }
 }
+
+
+export function checkRole(req,res,next) {
+  //  console.log(req.user);
+   if(req.user.role === "User") {
+    return res.status(403).json({error:"forbidden access"})
+   }
+   next();
+}

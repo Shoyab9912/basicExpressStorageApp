@@ -34,6 +34,11 @@ const userSchema = new Schema({
         type:"String",
         enum : ["local","google","github"],
         default:"local"
+    },
+    role : {
+        type:String,
+        enum : ["User","Admin","Manager"],
+        default:"User"
     }
 })
 

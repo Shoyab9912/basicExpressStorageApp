@@ -29,7 +29,7 @@ app.locals.storageBase = path.join(__dirname, "storage")
 
 app.use('/directory',directoryRoutes)
 app.use('/file',fileRoutes)
-app.use("/user", userRoutes)
+app.use("/", userRoutes)
 app.use("/auth", authRoutes)
 
 
