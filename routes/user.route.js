@@ -1,5 +1,5 @@
 import express from "express";
-import { getNameAndEmail, login, logout, userRegister,logoutAll,getAllUsers } from "../controllers/user.controller.js";
+import { getNameAndEmail, login, logout, userRegister,logoutAll,getAllUsers ,adminLogout} from "../controllers/user.controller.js";
 import checkAuth,{checkRole} from "../middlewares/auth.middleware.js"
 
 
@@ -13,4 +13,5 @@ router.get('/user', checkAuth,getNameAndEmail)
 router.get('/users', checkAuth, checkRole, getAllUsers);
 router.post("/user/logout", logout);
 router.post("/user/logout-all", checkAuth, logoutAll);
+router.post("/users/:userId/logout", checkAuth, checkRole, adminLogout)
 export default router;

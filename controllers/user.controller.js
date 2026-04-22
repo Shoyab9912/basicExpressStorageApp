@@ -121,6 +121,16 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 
+const adminLogout = asyncHandler(async (req, res) => {
+  const {userId} = req.params;
+   await Session.deleteMany({userId})
+   res.clearCookie("sessionId", {
+    httpOnly: true,
+    signed: true, 
+})
+   return res.sendStatus(204);
+})
+
 
 
 const logoutAll = asyncHandler(async (req, res) => {
@@ -140,6 +150,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
   const allSessions = new Set(userSessions.map(s => s.userId.toString()));
   const usersWithStatus = users.map(u => {
      return {
+      id : u._id,
       name: u.name,
       email: u.email,
       isLoggedIn : allSessions.has(u._id.toString())
@@ -157,5 +168,6 @@ export {
   getNameAndEmail,
   logout,
   logoutAll,
-  getAllUsers
+  getAllUsers,
+  adminLogout
 };
