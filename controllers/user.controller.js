@@ -9,6 +9,7 @@ import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from
 import File from "../models/file.model.js";
 import { rm } from "fs/promises";
 import path from "node:path";
+import e from "express";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -143,6 +144,7 @@ const logout = asyncHandler(async (req, res) => {
 
 const adminLogout = asyncHandler(async (req, res) => {
   const { userId } = req.params;
+  
   await Session.deleteMany({ userId })
   res.clearCookie("sessionId", {
     httpOnly: true,
@@ -211,6 +213,44 @@ const hardDeleteUser = asyncHandler(async (req, res) => {
 
 })
 
+
+const changeRole = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body;
+
+  if (req.user._id.toString() === userId) {
+    throw new UnauthorizedError("Users cannot change their own role")
+  }
+
+
+  if (role === "Owner") {
+    throw new UnauthorizedError("Cannot assign Owner role");
+  }
+
+  if (req.user.role === "Owner") {
+    if (!["Admin", "Manager"].includes(role)) {
+      throw new UnauthorizedError("Only owner can change roles to Admin or Manager")
+    }
+  } else if (req.user.role === "Admin") {
+    if (role !== "Manager") {
+      throw new UnauthorizedError("Only Admin can change roles to Manager")
+    }
+  } else {
+    throw new UnauthorizedError("Only owner can change roles")
+  }
+
+  const user = await User.updateOne({
+    _id: userId
+  }, {
+    $set: {
+      role
+    }
+  })
+  console.log(user);
+
+  return res.status(200).json(new ApiResponse(200, "User role updated successfully"))
+})
+
 export {
   userRegister,
   login,
@@ -221,5 +261,5 @@ export {
   adminLogout,
   softDeleteUser,
   hardDeleteUser,
-
+  changeRole
 };
