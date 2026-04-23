@@ -144,7 +144,7 @@ const logout = asyncHandler(async (req, res) => {
 
 const adminLogout = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  
+
   await Session.deleteMany({ userId })
   res.clearCookie("sessionId", {
     httpOnly: true,
@@ -251,6 +251,39 @@ const changeRole = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, "User role updated successfully"))
 })
 
+
+const viewFiles = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const files = await File.find({ userId }).lean();
+  return res.status(200).json(new ApiResponse(200, "User files fetched", files))
+})
+
+const viewDirectories = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const directories = await Directory.find({ userId }).lean();
+  return res.status(200).json(new ApiResponse(200, "User directories fetched", directories))
+})
+
+
+const viewSingleFile = asyncHandler(async (req, res) => {
+  const { userId, fileId } = req.params;
+
+  const file = await File.findOne({ _id: fileId, userId }).lean();
+
+  if (!file) {
+    throw new NotFoundError("File not found");
+  }
+
+
+  const filePath = safeStoragePath(req, fileId);
+
+  return res.sendFile(`${filePath}${file.extension}`, (err) => {
+    if (!res.headersSent && err) {
+      next(new NotFoundError("File not found"));
+    }
+  });
+})
+
 export {
   userRegister,
   login,
@@ -261,5 +294,8 @@ export {
   adminLogout,
   softDeleteUser,
   hardDeleteUser,
-  changeRole
+  changeRole,
+  viewFiles,
+  viewDirectories,
+  viewSingleFile
 };
