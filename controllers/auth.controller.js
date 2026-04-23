@@ -1,5 +1,5 @@
 import { sendOTPEmail } from "../utils/nodemailer.js";
-import { ValidationError } from "../utils/errors.js";
+import { UnauthorizedError, ValidationError } from "../utils/errors.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import OTP from "../models/otp.model.js";
@@ -47,6 +47,9 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     let user = await User.findOne({ email });
     let session;
     if (user) {
+        if(user.isDeleted) {
+            throw new UnauthorizedError("User account has been deleted");
+        }
         session = await Session.create({ userId: user._id })
     } else {
         const mongooseSession = await mongoose.startSession();
@@ -83,8 +86,10 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
         }
     }
 
+    const sessionId = session._id?.toString() ?? session[0]?._id.toString();
 
-    res.cookie("sessionId", session._id.toString() ?? session[0]._id.toString(), {
+    console.log(session);
+    res.cookie("sessionId", sessionId, {
         signed: true,
         httpOnly: true,
         maxAge: 60 * 1000 * 60 * 24 * 7
@@ -152,6 +157,9 @@ const gitHubCallback = asyncHandler(async (req, res) => {
     let user = await User.findOne({ email });
     let session;
     if (user) {
+         if(user.isDeleted) {
+            throw new UnauthorizedError("User account has been deleted");
+        }
         session = await Session.create({ userId: user._id })
         console.log(session);
     } else {
@@ -186,8 +194,8 @@ const gitHubCallback = asyncHandler(async (req, res) => {
             await mongooseSession.endSession();
         }
     }
-
-    res.cookie("sessionId", session._id.toString() ?? session[0]._id.toString(), {
+    const sessionId = session?._id.toString() ?? session[0]?._id.toString();
+    res.cookie("sessionId", sessionId, {
         signed: true,
         httpOnly: true,
         maxAge: 60 * 1000 * 60 * 24 * 7

@@ -6,6 +6,22 @@ import asyncHandler from "../utils/asyncHandler.js";
 import Session from "../models/session.model.js";
 import OTP from "../models/otp.model.js";
 import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
+import File from "../models/file.model.js";
+import { rm } from "fs/promises";
+import path from "node:path";
+
+function safeStoragePath(req, part) {
+  const base = path.resolve(req.app.locals.storageBase);
+  const target = path.resolve(base, part);
+
+  if (base !== target && !target.startsWith(base + path.sep)) {
+    throw new ApiError(400, "Invalid file path");
+  }
+
+  return target;
+}
+
+
 
 const userRegister = asyncHandler(async (req, res) => {
   const { email, password, name, otp } = req.body;
@@ -81,6 +97,10 @@ const login = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("Invalid credentials");
   }
 
+  if (user.deleted) {
+    throw new UnauthorizedError("User account has been deleted");
+  }
+
   const isPasswordMatched = await user.verifyPassword(password)
 
   if (!isPasswordMatched) {
@@ -104,8 +124,8 @@ const getNameAndEmail = asyncHandler(async (req, res) => {
     new ApiResponse(200, "User fetched", {
       name: req.user.name,
       email: req.user.email,
-      profile : req.user.picture,
-      role:req.user.role
+      profile: req.user.picture,
+      role: req.user.role
     })
   );
 });
@@ -122,13 +142,13 @@ const logout = asyncHandler(async (req, res) => {
 
 
 const adminLogout = asyncHandler(async (req, res) => {
-  const {userId} = req.params;
-   await Session.deleteMany({userId})
-   res.clearCookie("sessionId", {
+  const { userId } = req.params;
+  await Session.deleteMany({ userId })
+  res.clearCookie("sessionId", {
     httpOnly: true,
-    signed: true, 
-})
-   return res.sendStatus(204);
+    signed: true,
+  })
+  return res.sendStatus(204);
 })
 
 
@@ -144,23 +164,52 @@ const logoutAll = asyncHandler(async (req, res) => {
 });
 
 const getAllUsers = asyncHandler(async (req, res) => {
-  
+
   const users = await User.find().lean().select("name email picture role");
   const userSessions = await Session.find({ userId: { $in: users.map(u => u._id) } }).lean();
   const allSessions = new Set(userSessions.map(s => s.userId.toString()));
   const usersWithStatus = users.map(u => {
-     return {
-      id : u._id,
+    return {
+      id: u._id,
       name: u.name,
       email: u.email,
-      isLoggedIn : allSessions.has(u._id.toString())
-     }
+      isLoggedIn: allSessions.has(u._id.toString())
+    }
   })
- return res.status(200).json(new ApiResponse(200, "Users fetched", usersWithStatus));
+  return res.status(200).json(new ApiResponse(200, "Users fetched", usersWithStatus));
 
 })
 
 
+const softDeleteUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const user = await User.findByIdAndUpdate(userId, { isDeleted: true })
+  const session = await Session.deleteMany({ userId })
+  return res.status(200).json(new ApiResponse(200, "User deleted successfully"))
+
+})
+
+
+const hardDeleteUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const session = await Session.deleteMany({ userId })
+  const user = await User.deleteOne({ _id: userId })
+  const files = await File.find({ userId }, " extension ").lean()
+
+  if (files.length > 0) {
+    console.log(files);
+    for (let { _id, extension } of files || []) {
+      const filePath = safeStoragePath(req, _id.toString());
+      console.log(filePath, extension);
+      await rm(`${filePath}${extension}`, { force: true });
+    }
+    await File.deleteMany({ userId })
+  }
+
+  const directories = await Directory.deleteMany({ userId })
+  return res.status(200).json(new ApiResponse(200, "User deleted successfully"))
+
+})
 
 export {
   userRegister,
@@ -169,5 +218,8 @@ export {
   logout,
   logoutAll,
   getAllUsers,
-  adminLogout
+  adminLogout,
+  softDeleteUser,
+  hardDeleteUser,
+
 };

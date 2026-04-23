@@ -13,7 +13,7 @@ function safeStoragePath(req, part) {
   const target = path.resolve(base, part);
 
   if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new Error("Invalid path");
+    throw new ApiError(400, "Invalid file path");
   }
 
   return target;

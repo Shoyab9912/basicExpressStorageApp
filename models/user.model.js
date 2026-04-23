@@ -39,6 +39,10 @@ const userSchema = new Schema({
         type:String,
         enum : ["User","Admin","Manager","Owner"],
         default:"User"
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false
     }
 })
 

@@ -4,7 +4,7 @@ import Session from "../models/session.model.js";
 
 
 export default async function checkAuth(req, res, next) {
-  console.log("Checking auth for request:", req.method, req.originalUrl);
+  
   try {
     let sid = req.signedCookies.sessionId;
      
@@ -22,7 +22,7 @@ export default async function checkAuth(req, res, next) {
   
     const user = await User.findById(session.userId).select("-password");
 
-    if (!user) {
+    if (!user || user.isDeleted) {
       return res.status(401).json({ error: "unauthorized access" });
     }
 
@@ -45,8 +45,6 @@ export function checkRole(req,res,next) {
 
 
 export function checkAdmin(req,res,next) {
-   if(req.user.role !== "Admin" || req.user.role !== "Owner") {
-    return res.status(403).json({error:"forbidden access"})
-   }
-   next();
+  if(req.user.role === "Admin" || req.user.role === "Owner") return next();
+  return res.status(403).json({error:"forbidden access"})
 }
