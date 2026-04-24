@@ -49,3 +49,10 @@ export function checkAdmin(req,res,next) {
   if(req.user.role === "Admin" || req.user.role === "Owner") return next();
   return res.status(403).json({error:"forbidden access"})
 }
+
+
+
+export function checkOwner(req,res,next) {
+  if(req.user.role === "Owner") return next();
+  return res.status(403).json({error:"forbidden access"})
+}

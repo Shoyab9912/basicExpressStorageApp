@@ -284,6 +284,18 @@ const viewSingleFile = asyncHandler(async (req, res) => {
   });
 })
 
+
+const deleteFile = asyncHandler(async (req, res) => {
+  const { userId, fileId } = req.params;
+  const file = await File.deleteOne({ _id: fileId, userId })
+  if (file.deletedCount !== 0) {
+    const filePath = safeStoragePath(req, fileId);
+    await rm(`${filePath}${file.extension}`, { force: true });
+    return res.status(200).json(new ApiResponse(200, "File deleted successfully"))
+  }
+  throw new NotFoundError("File not found");
+})
+
 export {
   userRegister,
   login,
@@ -297,5 +309,6 @@ export {
   changeRole,
   viewFiles,
   viewDirectories,
-  viewSingleFile
+  viewSingleFile,
+  deleteFile
 };
