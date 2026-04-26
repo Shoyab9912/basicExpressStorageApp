@@ -17,7 +17,13 @@ const fileSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
         ref: "User"
-    }
+    },
+    sharedWith: [
+        {
+            userId: { type: Schema.Types.ObjectId, ref: "User" },
+            permission: { type: String, enum: ["viewer", "editor"] }
+        }
+    ]
 })
 
 

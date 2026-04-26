@@ -1,23 +1,29 @@
-import {Schema,model} from 'mongoose'
+import { Schema, model } from 'mongoose'
 
 
 const directorySchema = new Schema({
-    name : {
-        type:String,
-        required:[true,"name field required"],
+    name: {
+        type: String,
+        required: [true, "name field required"],
     },
     userId: {
-        type:Schema.Types.ObjectId,
-         ref:"User"
+        type: Schema.Types.ObjectId,
+        ref: "User"
     },
     parentDirId: {
-        type:Schema.Types.ObjectId,
-        ref:"Directory",
-        default:null
-    }
-}) 
+        type: Schema.Types.ObjectId,
+        ref: "Directory",
+        default: null
+    },
+    sharedWith: [
+        {
+            userId: { type: Schema.Types.ObjectId, ref: "User" },
+            permission: { type: String, enum: ["viewer", "editor"] }
+        }
+    ]
+})
 
 
-const Directory = model("Directory",directorySchema)
+const Directory = model("Directory", directorySchema)
 
 export default Directory

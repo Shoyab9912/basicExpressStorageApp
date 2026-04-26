@@ -7,6 +7,7 @@ import fileRoutes from "./routes/file.route.js"
 import directoryRoutes from "./routes/directory.route.js"
 import userRoutes from "./routes/user.route.js"
 import authRoutes from "./routes/auth.route.js"
+import shareRoutes from "./routes/share.route.js"
 import connectDb from "./config/db.js"
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 
@@ -31,6 +32,7 @@ app.use('/directory',directoryRoutes)
 app.use('/file',fileRoutes)
 app.use("/", userRoutes)
 app.use("/auth", authRoutes)
+app.use('/share',shareRoutes)
 
 
 
