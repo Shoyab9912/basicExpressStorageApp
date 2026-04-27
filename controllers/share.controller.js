@@ -10,12 +10,15 @@ import {
 import { ApiResponse } from "../utils/ApiResponse.js";
 import getAccess from "../utils/getAccess.js";
 import User from "../models/user.model.js";
+import mongoose from "mongoose";
 
 const shareViaEmail = asyncHandler(async (req, res) => {
+    
   const { resourceType, resourceId } = req.params;
   const { email, permission } = req.body;
 
-  console.log(req.body)
+  console.log(req.body,req.params)
+
 
   if (
     [resourceType, resourceId, email, permission].some(
@@ -39,7 +42,7 @@ const shareViaEmail = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ email });
-
+  
   if (!user) {
     throw new NotFoundError("User not found");
   }
@@ -72,7 +75,7 @@ const shareViaEmail = asyncHandler(async (req, res) => {
         },
       },
     },
-    { returnDocument :"after"},
+    { returnDocument: "after" },
   );
 
   if (!result) {
@@ -102,7 +105,6 @@ const revokeAccessViaEmail = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("forbidden to acceess");
   }
 
-
   const initialLength = resource.sharedWith.length;
   resource.sharedWith = resource.sharedWith.filter(
     (u) => !u.userId.equals(userId),
@@ -117,4 +119,40 @@ const revokeAccessViaEmail = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Access revoked successfully"));
 });
 
-export { shareViaEmail,revokeAccessViaEmail};
+const updatePermission = asyncHandler(async (req, res) => {
+  const { resourceType, resourceId, userId } = req.params;
+
+  const {permission} = req.body
+
+  if (!resourceType || !resourceId || !userId || !permission) {
+    throw new ValidationError("All fields are required");
+  }
+
+  const Model = resourceType === "file" ? File : Directory;
+
+  const resource = await Model.findById(resourceId);
+
+  if (!resource) {
+    throw new NotFoundError("Resource not found");
+  }
+
+  const access = getAccess(req.user._id, resource);
+
+  if (access !== "owner") {
+    throw new UnauthorizedError("forbidden to acceess");
+  }
+  const targetId = new mongoose.Types.ObjectId(userId)
+  const update = await Model.updateOne({
+    _id:resource._id,
+    "sharedWith.userId" : targetId
+  },{
+    $set : {
+        "sharedWith.$.permission" : permission
+    }
+  })
+
+  
+  return res.status(200).json(new ApiResponse(200,"successfuuly update the permission"))
+});
+
+export { shareViaEmail, revokeAccessViaEmail, updatePermission };

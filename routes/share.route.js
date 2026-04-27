@@ -3,7 +3,8 @@ import checkAuth from "../middlewares/auth.middleware.js";
 import validateObjectId from "../middlewares/validObjectId.middleware.js";
 import {
     revokeAccessViaEmail,
-    shareViaEmail
+    shareViaEmail,
+    updatePermission
 }  from "../controllers/share.controller.js"
 
 const router =  express.Router()
@@ -11,7 +12,7 @@ const router =  express.Router()
 router.use(checkAuth)
 router.param('resourceId',validateObjectId)
 router.route('/:resourceType/:resourceId').post(shareViaEmail)
-router.route('/:resourceType/:resourceId/:userId').post(revokeAccessViaEmail)
+router.route('/:resourceType/:resourceId/:userId').post(revokeAccessViaEmail).patch(updatePermission)
 
 
 
