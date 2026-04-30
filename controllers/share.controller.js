@@ -186,9 +186,13 @@ const getAllSharedUsers = asyncHandler(async (req, res) => {
   }
   return res.status(200).json(new ApiResponse(200, resource.sharedWith));
 });
+
+
+
 export {
   shareViaEmail,
   revokeAccessViaEmail,
   updatePermission,
   getAllSharedUsers,
+  
 };
