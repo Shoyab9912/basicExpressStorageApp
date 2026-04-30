@@ -13,12 +13,10 @@ import User from "../models/user.model.js";
 import mongoose from "mongoose";
 
 const shareViaEmail = asyncHandler(async (req, res) => {
-    
   const { resourceType, resourceId } = req.params;
   const { email, permission } = req.body;
 
-  console.log(req.body,req.params)
-
+  console.log(req.body, req.params);
 
   if (
     [resourceType, resourceId, email, permission].some(
@@ -42,7 +40,7 @@ const shareViaEmail = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ email });
-  
+
   if (!user) {
     throw new NotFoundError("User not found");
   }
@@ -122,7 +120,7 @@ const revokeAccessViaEmail = asyncHandler(async (req, res) => {
 const updatePermission = asyncHandler(async (req, res) => {
   const { resourceType, resourceId, userId } = req.params;
 
-  const {permission} = req.body
+  const { permission } = req.body;
 
   if (!resourceType || !resourceId || !userId || !permission) {
     throw new ValidationError("All fields are required");
@@ -141,18 +139,56 @@ const updatePermission = asyncHandler(async (req, res) => {
   if (access !== "owner") {
     throw new UnauthorizedError("forbidden to acceess");
   }
-  const targetId = new mongoose.Types.ObjectId(userId)
-  const update = await Model.updateOne({
-    _id:resource._id,
-    "sharedWith.userId" : targetId
-  },{
-    $set : {
-        "sharedWith.$.permission" : permission
-    }
-  })
+  const targetId = new mongoose.Types.ObjectId(userId);
+  const update = await Model.updateOne(
+    {
+      _id: resource._id,
+      "sharedWith.userId": targetId,
+    },
+    {
+      $set: {
+        "sharedWith.$.permission": permission,
+      },
+    },
+  );
 
-  
-  return res.status(200).json(new ApiResponse(200,"successfuuly update the permission"))
+  if (update.modifiedCount === 0) {
+    throw new NotFoundError("User not found in shared list");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "successfully update the permission"));
 });
 
-export { shareViaEmail, revokeAccessViaEmail, updatePermission };
+const getAllSharedUsers = asyncHandler(async (req, res) => {
+  const { resourceType, resourceId } = req.params;
+
+  if (!resourceType || !resourceId) {
+    throw new ValidationError("All fields are required");
+  }
+
+  const Model = resourceType === "file" ? File : Directory;
+
+  const resource = await Model.findById(resourceId).populate(
+    "sharedWith.userId",
+    " name email ",
+  );
+
+  if (!resource) {
+    throw new NotFoundError("Resource not found");
+  }
+
+  const access = getAccess(req.user._id, resource);
+
+  if (access !== "owner") {
+    throw new UnauthorizedError("forbidden to acceess");
+  }
+  return res.status(200).json(new ApiResponse(200, resource.sharedWith));
+});
+export {
+  shareViaEmail,
+  revokeAccessViaEmail,
+  updatePermission,
+  getAllSharedUsers,
+};
