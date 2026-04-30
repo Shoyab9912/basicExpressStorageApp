@@ -11,6 +11,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import getAccess from "../utils/getAccess.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
+import crypto from "node:crypto";
 
 const shareViaEmail = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;
@@ -187,12 +188,53 @@ const getAllSharedUsers = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, resource.sharedWith));
 });
 
+const createShareLink = asyncHandler(async (req, res) => {
+  const { resourceType, resourceId } = req.params;
 
+  const { permission, expiresIn = 7 } = req.body;
+
+  if (!resourceType || !resourceId || !permission) {
+    throw new ValidationError("All fields are required");
+  }
+
+  const Model = resourceType === "file" ? File : Directory;
+
+  const resource = await Model.findById(resourceId);
+
+  if (!resource) {
+    throw new NotFoundError("Resource not found");
+  }
+
+  const access = getAccess(req.user._id, resource);
+  console.log(access);
+
+  if (!access || access === "viewer") {
+    throw new UnauthorizedError("forbidden to access");
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + (expiresIn || 7));
+
+  resource.shareLink = {
+    token,
+    permission,
+    expiresAt,
+  };
+  resource.save();
+  return res.status(200).json(
+    new ApiResponse(200, "share link generated ", {
+      link: `${process.env.BASEUURL}/share/acess/${token}`,
+      expiresAt,
+    }),
+  );
+});
 
 export {
   shareViaEmail,
   revokeAccessViaEmail,
   updatePermission,
   getAllSharedUsers,
-  
+  createShareLink,
 };

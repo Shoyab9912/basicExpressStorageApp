@@ -5,7 +5,8 @@ import {
     getAllSharedUsers,
     revokeAccessViaEmail,
     shareViaEmail,
-    updatePermission
+    updatePermission,
+    createShareLink
 }  from "../controllers/share.controller.js"
 import getAccess from "../utils/getAccess.js";
 
@@ -15,6 +16,7 @@ router.use(checkAuth)
 router.param('resourceId',validateObjectId)
 router.param('userId',validateObjectId)
 router.route('/:resourceType/:resourceId').post(shareViaEmail).get(getAllSharedUsers)
+router.route("/:resourceType/:resourceId/link").post(createShareLink)
 router.route('/:resourceType/:resourceId/:userId').post(revokeAccessViaEmail).patch(updatePermission)
 
 

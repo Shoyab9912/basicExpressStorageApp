@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import { permission } from "node:process";
+
 
 const directorySchema = new Schema({
   name: {
