@@ -231,10 +231,45 @@ const createShareLink = asyncHandler(async (req, res) => {
   );
 });
 
+const revokeShareLink = asyncHandler(async (req, res) => {
+  const { resourceType, resourceId } = req.params;
+
+
+  if (!resourceType || !resourceId) {
+    throw new ValidationError("All fields are required");
+  }
+
+  const Model = resourceType === "file" ? File : Directory;
+
+  const resource = await Model.findById(resourceId);
+
+  if (!resource) {
+    throw new NotFoundError("Resource not found");
+  }
+
+  const access = getAccess(req.user?._id, resource,null);
+
+  if (access !== "owner") {
+    throw new UnauthorizedError("Youy cant revoke it");
+  }
+
+  if (!resource.shareLink?.token) {
+    throw new NotFoundError("No share link found");
+  }
+
+  resource.shareLink = undefined;
+  await resource.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Share link revoked successfully"));
+});
+
 export {
   shareViaEmail,
   revokeAccessViaEmail,
   updatePermission,
   getAllSharedUsers,
   createShareLink,
+  revokeShareLink
 };
