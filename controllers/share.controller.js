@@ -12,6 +12,18 @@ import getAccess from "../utils/getAccess.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "node:crypto";
+import path from "node:path"
+
+function safeStoragePath(req, part) {
+  const base = path.resolve(req.app.locals.storageBase);
+  const target = path.resolve(base, part);
+
+  if (base !== target && !target.startsWith(base + path.sep)) {
+    throw new ApiError(400, "Invalid file path");
+  }
+
+  return target;
+}
 
 const shareViaEmail = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;
@@ -234,7 +246,6 @@ const createShareLink = asyncHandler(async (req, res) => {
 const revokeShareLink = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;
 
-
   if (!resourceType || !resourceId) {
     throw new ValidationError("All fields are required");
   }
@@ -247,7 +258,7 @@ const revokeShareLink = asyncHandler(async (req, res) => {
     throw new NotFoundError("Resource not found");
   }
 
-  const access = getAccess(req.user?._id, resource,null);
+  const access = getAccess(req.user?._id, resource, null);
 
   if (access !== "owner") {
     throw new UnauthorizedError("Youy cant revoke it");
@@ -265,11 +276,54 @@ const revokeShareLink = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Share link revoked successfully"));
 });
 
+const acceessViaLink = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+
+  let resource = await File.findOne({ "shareLink.token": token });
+
+  let resourceType = "File";
+  if (!resource) {
+    resource = await Directory.findOne({ "shareLink.token": token });
+    resourceType = "Directory";
+  }
+
+  if (!resource) throw new NotFoundError("Invalid or expired link");
+
+  if (
+    resource.shareLink.expiresAt &&
+    resource.shareLink.expiresAt < Date.now()
+  ) {
+    throw new UnauthorizedError("Link has expired");
+  }
+
+  if (resourceType === "File") {
+    const filePath = safeStoragePath(req, resource._id.toString());
+    return res.sendFile(`${filePath}${resource.extension}`, (err) => {
+      if (!res.headersSent && err) {
+        next(new NotFoundError("File not found"));
+      }
+    });
+  }
+
+  if (resourceType === "Directory") {
+    const files = await File.find({ parentDirId: resource._id }).lean();
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, "Directory fetched", {
+          directory: resource,
+          files,
+        }),
+      );
+  }
+});
+
 export {
   shareViaEmail,
   revokeAccessViaEmail,
   updatePermission,
   getAllSharedUsers,
   createShareLink,
-  revokeShareLink
+  revokeShareLink,
+  acceessViaLink
 };

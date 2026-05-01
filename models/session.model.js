@@ -9,7 +9,7 @@ const sessionSchema = new Schema({
   createdAt : {
     type: Date,
     default: Date.now,
-    expires: 60 * 60 * 24 * 3// Session expires after 24 hours
+    expires: 60 * 60 * 24 * 7
   }
 });
 
