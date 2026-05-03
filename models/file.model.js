@@ -29,6 +29,7 @@ const fileSchema = new Schema({
     expiresAt: { type: Date, default: null },
   },
 });
-
+fileSchema.index({ parentDirId: 1 ,userId: 1});
 const File = model("File", fileSchema);
+
 export default File;

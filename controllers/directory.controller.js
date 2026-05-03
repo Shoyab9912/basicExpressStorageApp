@@ -1,12 +1,16 @@
-import mongoose from 'mongoose'
+import mongoose from "mongoose";
 import { rm } from "node:fs/promises";
 import Directory from "../models/directory.model.js";
 import File from "../models/file.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { NotFoundError, ValidationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "../utils/errors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import path from "node:path"
-
+import path from "node:path";
+import getAccess from "../utils/getAccess.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -23,9 +27,15 @@ const getDirectory = asyncHandler(async (req, res) => {
   const user = req.user;
   const id = req.params.id ?? user.rootDirId;
 
-  const dirData = await Directory.findOne({ _id: id, userId: user._id }).lean();
+  const dirData = await Directory.findById(id);
 
   if (!dirData) {
+    throw new NotFoundError("Directory not found");
+  }
+
+  const access = getAccess(req.user?._id, dirData);
+
+  if (!access) {
     throw new NotFoundError("Directory not found");
   }
 
@@ -36,8 +46,11 @@ const getDirectory = asyncHandler(async (req, res) => {
     new ApiResponse(200, "Directory fetched", {
       ...dirData,
       files: files.map(({ _id, ...rest }) => ({ id: _id, ...rest })),
-      directories: directories.map(({ _id, ...rest }) => ({ id: _id, ...rest })),
-    })
+      directories: directories.map(({ _id, ...rest }) => ({
+        id: _id,
+        ...rest,
+      })),
+    }),
   );
 });
 
@@ -51,11 +64,16 @@ const createDirectory = asyncHandler(async (req, res) => {
 
   const parentDir = await Directory.findOne({
     _id: parentDirId,
-    userId: user._id,
   });
 
   if (!parentDir) {
     throw new NotFoundError("Parent directory");
+  }
+
+  const access = getAccess(req.user._id, parentDir);
+  
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("Access denied");
   }
 
   await Directory.create({
@@ -64,13 +82,12 @@ const createDirectory = asyncHandler(async (req, res) => {
     parentDirId,
   });
 
-  return res.status(201).json(
-    new ApiResponse(201, "Directory created successfully")
-  );
+  return res
+    .status(201)
+    .json(new ApiResponse(201, "Directory created successfully"));
 });
 
 const updateDirectoryName = asyncHandler(async (req, res) => {
-
   const { dirId } = req.params;
   const { newDirName } = req.body;
   const user = req.user;
@@ -79,38 +96,50 @@ const updateDirectoryName = asyncHandler(async (req, res) => {
     throw new ValidationError("Directory name is required");
   }
 
-  const dirData = await Directory.findOneAndUpdate(
-    { _id: dirId, userId: user._id },
-    { name: newDirName },
-    { new: true }
-  );
+  const dirData = await Directory.findById(dirId);
 
   if (!dirData) {
-    throw new NotFoundError("directory doesn't exists")
+    throw new NotFoundError("Directory doesn't exist");
   }
-  return res.status(200).json(
-    new ApiResponse(200, "Directory renamed successfully", dirData)
-  );
-});
+  const access = getAccess(req.user?._id, dirData);
 
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("you cant access this resource");
+  }
+
+  const updated = await Directory.findOneAndUpdate(
+    { _id: dirId, userId: user._id },
+    { name: newDirName },
+    { returnDocument: "after" },
+  );
+
+  if (!updated) {
+    throw new NotFoundError("directory doesn't exists");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Directory renamed successfully", updated));
+});
 
 const deleteDirRecursively = asyncHandler(async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 
-  const dirData = await Directory.findOne({
-    _id: id,
-    userId: user._id,
-  });
+  const dirData = await Directory.findById(id);
 
   if (!dirData) {
-    throw new NotFoundError("Directory");
+    throw new NotFoundError("Directory doesn't exist");
   }
 
-  const { files, allDirIds } = await getDirRecursively(dirData._id)
+  const access = getAccess(req.user?._id, dirData);
+
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("Access denied");
+  }
+
+  const { files, allDirIds } = await getDirRecursively(dirData._id);
 
   if (files.length > 0) {
-
     await File.deleteMany({
       _id: { $in: [...allDirIds, dirData._id] },
     });
@@ -119,48 +148,50 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
       const filePath = safeStoragePath(req, `${_id.toString()}${extension}`);
       await rm(filePath, { force: true });
     }
-
-
   }
 
   await Directory.deleteMany({
     _id: { $in: [...allDirIds, dirData._id] },
   });
 
-  return res.status(200).json(
-    new ApiResponse(200, "Directory deleted successfully")
-  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Directory deleted successfully"));
 });
 
 async function getDirRecursively(rootId) {
+  const directoriess = await Directory.aggregate([
+    {
+      $match: {
+        _id: rootId,
+      },
+    },
+    {
+      $graphLookup: {
+        from: "directories",
+        connectFromField: "_id",
+        connectToField: "parentDirId",
+        startWith: "$_id",
+        as: "directories",
+      },
+    },
+  ]);
 
-  const directoriess = await Directory.aggregate([{
-    $match: {
-      _id: rootId
-    }
-  }, {
-    $graphLookup: {
-      from: "directories",
-      connectFromField: "_id",
-      connectToField: "parentDirId",
-      startWith: "$_id",
-      as: "directories"
-    }
-  }])
+  const allDirIds = directoriess[0].directories.map(({ _id }) => _id);
 
-  const allDirIds = directoriess[0].directories.map(({ _id }) => (_id))
+  const files = await File.find(
+    {
+      parentDirId: {
+        $in: allDirIds,
+      },
+    },
+    {
+      extension: 1,
+    },
+  ).lean();
 
-  const files = await File.find({
-    parentDirId: {
-      $in: allDirIds
-    }
-  }, {
-    extension: 1
-  }).lean()
-
-  return { files, allDirIds }
+  return { files, allDirIds };
 }
-
 
 export {
   createDirectory,

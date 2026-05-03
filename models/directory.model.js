@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+import { dir } from "node:console";
 
 
 const directorySchema = new Schema({
@@ -14,6 +15,7 @@ const directorySchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "Directory",
     default: null,
+    index: true,
   },
   sharedWith: [
     {
@@ -27,6 +29,8 @@ const directorySchema = new Schema({
     expiresAt: { type: Date, default: null },
   },
 });
+
+directorySchema.index({ parentDirId: 1, userId: 1 });
 
 const Directory = model("Directory", directorySchema);
 

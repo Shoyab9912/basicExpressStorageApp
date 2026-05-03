@@ -3,10 +3,15 @@ import { rm } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import File from "../models/file.model.js";
 import Directory from "../models/directory.model.js";
-import { NotFoundError, ValidationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "../utils/errors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
+import getAccess from "../utils/getAccess.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -19,14 +24,18 @@ function safeStoragePath(req, part) {
   return target;
 }
 
-
 const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
 
-  const file = await File.findOne({ _id: id, userId: user._id }).lean();
-
+  const file = await File.findById(id);
   if (!file) throw new NotFoundError("File doesn't exist");
+
+  const access = getAccess(req.user?._id, file);
+
+  if (!access) {
+    throw new UnauthorizedError("you cant access this resource");
+  }
 
   const filePath = safeStoragePath(req, id);
 
@@ -37,37 +46,38 @@ const serveFile = asyncHandler(async (req, res, next) => {
   });
 });
 
-
-
 const downloadFile = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const user = req.user;
 
-  const file = await File.findOne({ _id: id, userId: user._id }).lean();
-
+  const file = await File.findById(id);
   if (!file) throw new NotFoundError("File doesn't exist");
+
+  const access = getAccess(req.user?._id, file);
+
+  if (!access) {
+    throw new UnauthorizedError("you cant access this resource");
+  }
 
   const filePath = safeStoragePath(req, id);
 
   if (req.query.action === "download") {
     return res.download(`${filePath}${file.extension}`, file.name);
   }
-
 });
-
 
 const uploadFile = asyncHandler(async (req, res, next) => {
   const user = req.user;
 
   const parentDirId = req.params.parentDirId ?? user.rootDirId;
 
-  const dirData = await Directory.findOne({
-    _id: parentDirId,
-    userId: user._id
-  }).lean()
+  const dirData = await Directory.findById(parentDirId);
+  if (!dirData) throw new NotFoundError("Directory doesn't exist");
 
-  if (!dirData) {
-    throw new NotFoundError("Directory doesn't exist");
+  const access = getAccess(req.user._id, dirData);
+
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("Access denied");
   }
 
   const fileName = path.basename(req.headers.filename || "file");
@@ -77,7 +87,7 @@ const uploadFile = asyncHandler(async (req, res, next) => {
     extension,
     name: fileName,
     userId: user._id,
-    parentDirId: dirData._id
+    parentDirId: dirData._id,
   });
 
   const fileId = fileData._id.toString();
@@ -87,7 +97,9 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   req.pipe(writeStream);
 
   writeStream.on("finish", () => {
-    return res.status(201).json(new ApiResponse(201, "File uploaded successfully"));
+    return res
+      .status(201)
+      .json(new ApiResponse(201, "File uploaded successfully"));
   });
 
   writeStream.on("error", async (err) => {
@@ -112,32 +124,42 @@ const renameFile = asyncHandler(async (req, res) => {
     throw new ValidationError("Filename is required");
   }
 
+  const file = await File.findById(id);
+  if (!file) throw new NotFoundError("File doesn't exist");
+
+  const access = getAccess(req.user?._id, file);
+
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("you cant access this resource");
+  }
+
   const renamedFile = await File.findOneAndUpdate(
-    { _id: id, userId: user._id },
+    { _id: id },
     { $set: { name: newFilename } },
-    { returnDocument: "after", projection: { name: 1, extension: 1 } }
+    { returnDocument: "after", projection: { name: 1, extension: 1 } },
   );
 
   if (!renamedFile) {
     throw new NotFoundError("File");
   }
 
-
-  return res.status(200).json(new ApiResponse(200, "File renamed successfully", renamedFile));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "File renamed successfully", renamedFile));
 });
-
 
 const deleteFile = asyncHandler(async (req, res) => {
   const user = req.user;
   const { id } = req.params;
 
-  const file = await File.findOne({
-    _id: id,
-    userId: user._id
-  }).select("extension");
-  console.log(file)
-  if (!file) {
-    throw new NotFoundError("File doesn't exist");
+  const file = await File.findById(id);
+
+  if (!file) throw new NotFoundError("File doesn't exist");
+
+  const access = getAccess(req.user?._id, file);
+
+  if (access !== "owner" && access !== "editor") {
+    throw new UnauthorizedError("you cant access this resource");
   }
 
   const filePath = safeStoragePath(req, id);
@@ -146,18 +168,10 @@ const deleteFile = asyncHandler(async (req, res) => {
   const f = await File.deleteOne({ _id: file._id });
 
   if (f.deletedCount === 0) {
-    throw new ApiError(500, "Internal server error")
+    throw new ApiError(500, "Internal server error");
   }
 
-
-
-  return res.status(204).send()
+  return res.status(204).send();
 });
 
-export {
-  serveFile,
-  downloadFile,
-  uploadFile,
-  renameFile,
-  deleteFile
-};
+export { serveFile, downloadFile, uploadFile, renameFile, deleteFile };
