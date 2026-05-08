@@ -1,15 +1,21 @@
-import mongoose, { isValidObjectId } from "mongoose"
+import mongoose, { isValidObjectId } from "mongoose";
 import Directory from "../models/directory.model.js";
-import User from "../models/user.model.js"
+import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import Session from "../models/session.model.js";
 import OTP from "../models/otp.model.js";
-import { ValidationError, ConflictError, NotFoundError, UnauthorizedError } from "../utils/errors.js";
+import * as z from "zod";
+import {
+  ValidationError,
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+} from "../utils/errors.js";
 import File from "../models/file.model.js";
 import { rm } from "fs/promises";
 import path from "node:path";
-import e from "express";
+import { registerSchema } from "../validators/authSchema.validator.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -22,58 +28,69 @@ function safeStoragePath(req, part) {
   return target;
 }
 
-
-
 const userRegister = asyncHandler(async (req, res) => {
-  const { email, password, name, otp } = req.body;
+ 
+  const {success,data,error} = registerSchema.safeParse(req.body);
+  if(!success){
+    throw new ValidationError("input all fields",error.flatten().fieldErrors);
+  }
+  const { email, password, name, otp } = data;
 
-  if ([email, password, name, otp].some(f => !f || f.trim() === "")) {
+  if ([email, password, name, otp].some((f) => !f || f.trim() === "")) {
     throw new ValidationError("All fields are required");
   }
 
-
-  const isOtpExists = await OTP.exists({ email, otp })
+  const isOtpExists = await OTP.exists({ email, otp });
 
   if (!isOtpExists) {
-    throw new NotFoundError("Invalid OTP or OTP has expired")
+    throw new NotFoundError("Invalid OTP or OTP has expired");
   }
 
-  await OTP.deleteOne({ email, otp })
+  await OTP.deleteOne({ email, otp });
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await User.exists({ email })
+    const user = await User.exists({ email });
 
     if (user) {
       throw new ConflictError("User already exists");
     }
 
-
-
     const userId = new mongoose.Types.ObjectId();
     const rootDirId = new mongoose.Types.ObjectId();
 
-    await Directory.create([{
-      _id: rootDirId,
-      parentDirId: null,
-      name: `root-${email}`,
-      userId
-    }], { session });
+    await Directory.create(
+      [
+        {
+          _id: rootDirId,
+          parentDirId: null,
+          name: `root-${email}`,
+          userId,
+        },
+      ],
+      { session },
+    );
 
-    await User.create([{
-      _id: userId,
-      name,
-      email,
-      password,
-      rootDirId
-    }], { session });
+    await User.create(
+      [
+        {
+          _id: userId,
+          name,
+          email,
+          password,
+          rootDirId,
+        },
+      ],
+      { session },
+    );
 
     await session.commitTransaction();
 
-    return res.status(201).json(new ApiResponse(201, "Successfully user registered"));
-
+    return res
+      .status(201)
+      .json(new ApiResponse(201, "Successfully user registered"));
   } catch (err) {
     await session.abortTransaction();
     if (err.code === 121) {
@@ -86,13 +103,20 @@ const userRegister = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
 
-  if ([email, password].some(f => !f || f.trim() === "")) {
+  const {success,data} = loginSchema.safeParse(req.body);
+  if(!success){
+    throw new ValidationError("input credientials");
+  }
+
+
+  const { email, password } = data;
+
+  if ([email, password].some((f) => !f || f.trim() === "")) {
     throw new ValidationError("All fields are required");
   }
 
-  const user = await User.findOne({ email })
+  const user = await User.findOne({ email });
 
   if (!user) {
     throw new UnauthorizedError("Invalid credentials");
@@ -102,20 +126,19 @@ const login = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("User account has been deleted");
   }
 
-  const isPasswordMatched = await user.verifyPassword(password)
+  const isPasswordMatched = await user.verifyPassword(password);
 
   if (!isPasswordMatched) {
-    throw new UnauthorizedError("Invalid Credentials")
+    throw new UnauthorizedError("Invalid Credentials");
   }
 
   const session = await Session.create({ userId: user._id });
 
-  res.cookie("sessionId", session.id, {
+  res.cookie("sessionId", session._id.toString(), {
     signed: true,
     httpOnly: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7
+    maxAge: 60 * 60 * 24 * 7,
   });
-
 
   return res.status(200).json(new ApiResponse(200, "Login successful"));
 });
@@ -126,77 +149,78 @@ const getNameAndEmail = asyncHandler(async (req, res) => {
       name: req.user.name,
       email: req.user.email,
       profile: req.user.picture,
-      role: req.user.role
-    })
+      role: req.user.role,
+    }),
   );
 });
 
 const logout = asyncHandler(async (req, res) => {
-  await Session.findByIdAndDelete(req.signedCookies.sessionId);
+  const sessionId = req.signedCookies.sessionId;
+
+  await Session.deleteOne({ _id: sessionId });
+
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7
+    maxAge: 60 * 1000 * 60 * 24 * 7,
   });
   return res.sendStatus(204);
 });
 
-
 const adminLogout = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  await Session.deleteMany({ userId })
+  await Session.deleteMany({ userId });
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
-  })
+  });
   return res.sendStatus(204);
-})
-
-
+});
 
 const logoutAll = asyncHandler(async (req, res) => {
   await Session.deleteMany({ userId: req.user._id });
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7
+    maxAge: 60 * 1000 * 60 * 24 * 7,
   });
   return res.sendStatus(204);
 });
 
 const getAllUsers = asyncHandler(async (req, res) => {
-
   const users = await User.find().lean().select("name email picture role");
-  const userSessions = await Session.find({ userId: { $in: users.map(u => u._id) } }).lean();
-  const allSessions = new Set(userSessions.map(s => s.userId.toString()));
-  const usersWithStatus = users.map(u => {
+  const userSessions = await Session.find({
+    userId: { $in: users.map((u) => u._id) },
+  }).lean();
+  const allSessions = new Set(userSessions.map((s) => s.userId.toString()));
+  const usersWithStatus = users.map((u) => {
     return {
       id: u._id,
       name: u.name,
       email: u.email,
-      isLoggedIn: allSessions.has(u._id.toString())
-    }
-  })
-  return res.status(200).json(new ApiResponse(200, "Users fetched", usersWithStatus));
-
-})
-
+      isLoggedIn: allSessions.has(u._id.toString()),
+    };
+  });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Users fetched", usersWithStatus));
+});
 
 const softDeleteUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const user = await User.findByIdAndUpdate(userId, { isDeleted: true })
-  const session = await Session.deleteMany({ userId })
-  return res.status(200).json(new ApiResponse(200, "User deleted successfully"))
-
-})
-
+  const user = await User.findByIdAndUpdate(userId, { isDeleted: true });
+  const session = await Session.deleteMany({ userId });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User deleted successfully"));
+});
 
 const hardDeleteUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const session = await Session.deleteMany({ userId })
-  const user = await User.deleteOne({ _id: userId })
-  const files = await File.find({ userId }, " extension ").lean()
+  const session = await Session.deleteMany({ userId });
+  const user = await User.deleteOne({ _id: userId });
+  const files = await File.find({ userId }, " extension ").lean();
 
   if (files.length > 0) {
     console.log(files);
@@ -205,23 +229,22 @@ const hardDeleteUser = asyncHandler(async (req, res) => {
       console.log(filePath, extension);
       await rm(`${filePath}${extension}`, { force: true });
     }
-    await File.deleteMany({ userId })
+    await File.deleteMany({ userId });
   }
 
-  const directories = await Directory.deleteMany({ userId })
-  return res.status(200).json(new ApiResponse(200, "User deleted successfully"))
-
-})
-
+  const directories = await Directory.deleteMany({ userId });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User deleted successfully"));
+});
 
 const changeRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
 
   if (req.user._id.toString() === userId) {
-    throw new UnauthorizedError("Users cannot change their own role")
+    throw new UnauthorizedError("Users cannot change their own role");
   }
-
 
   if (role === "Owner") {
     throw new UnauthorizedError("Cannot assign Owner role");
@@ -229,43 +252,52 @@ const changeRole = asyncHandler(async (req, res) => {
 
   if (req.user.role === "Owner") {
     if (!["Admin", "Manager"].includes(role)) {
-      throw new UnauthorizedError("Only owner can change roles to Admin or Manager")
+      throw new UnauthorizedError(
+        "Only owner can change roles to Admin or Manager",
+      );
     }
   } else if (req.user.role === "Admin") {
     if (role !== "Manager") {
-      throw new UnauthorizedError("Only Admin can change roles to Manager")
+      throw new UnauthorizedError("Only Admin can change roles to Manager");
     }
   } else {
-    throw new UnauthorizedError("Only owner can change roles")
+    throw new UnauthorizedError("Only owner can change roles");
   }
 
-  const user = await User.updateOne({
-    _id: userId
-  }, {
-    $set: {
-      role
-    }
-  })
+  const user = await User.updateOne(
+    {
+      _id: userId,
+    },
+    {
+      $set: {
+        role,
+      },
+    },
+  );
   console.log(user);
 
-  return res.status(200).json(new ApiResponse(200, "User role updated successfully"))
-})
-
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User role updated successfully"));
+});
 
 const viewFiles = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const files = await File.find({ userId }).lean();
-  return res.status(200).json(new ApiResponse(200, "User files fetched", files))
-})
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User files fetched", files));
+});
 
 const viewDirectories = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const directories = await Directory.find({ userId }).lean();
-  return res.status(200).json(new ApiResponse(200, "User directories fetched", directories))
-})
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User directories fetched", directories));
+});
 
-
-const viewSingleFile = asyncHandler(async (req, res) => {
+const viewSingleFile = asyncHandler(async (req, res, next) => {
   const { userId, fileId } = req.params;
 
   const file = await File.findOne({ _id: fileId, userId }).lean();
@@ -274,7 +306,6 @@ const viewSingleFile = asyncHandler(async (req, res) => {
     throw new NotFoundError("File not found");
   }
 
-
   const filePath = safeStoragePath(req, fileId);
 
   return res.sendFile(`${filePath}${file.extension}`, (err) => {
@@ -282,19 +313,21 @@ const viewSingleFile = asyncHandler(async (req, res) => {
       next(new NotFoundError("File not found"));
     }
   });
-})
-
+});
 
 const deleteFile = asyncHandler(async (req, res) => {
   const { userId, fileId } = req.params;
-  const file = await File.deleteOne({ _id: fileId, userId })
-  if (file.deletedCount !== 0) {
-    const filePath = safeStoragePath(req, fileId);
-    await rm(`${filePath}${file.extension}`, { force: true });
-    return res.status(200).json(new ApiResponse(200, "File deleted successfully"))
-  }
-  throw new NotFoundError("File not found");
-})
+  const file = await File.findOne({ _id: fileId, userId });
+  if (!file) throw new NotFoundError("File not found");
+
+  const filePath = safeStoragePath(req, fileId);
+  await rm(`${filePath}${file.extension}`, { force: true });
+  await File.deleteOne({ _id: fileId });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "File deleted successfully"));
+});
 
 export {
   userRegister,
@@ -310,5 +343,5 @@ export {
   viewFiles,
   viewDirectories,
   viewSingleFile,
-  deleteFile
+  deleteFile,
 };

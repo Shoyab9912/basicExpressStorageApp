@@ -6,21 +6,19 @@ import Session from "../models/session.model.js";
 export default async function checkAuth(req, res, next) {
    
   try {
-    let sid = req.signedCookies.sessionId || req.cookies.sessionId;
+    let sid = req.signedCookies.sessionId
 
-     
     if (!sid) {
       return res.status(400).json({ error: "invalid session ID" });
     }
 
-        
-     const session = await Session.findById(sid);
+     const session = await Session.findById(sid).lean()
 
      if (!session) {
       return res.status(401).json({ error: "unauthorized access" });
     }
-    
-  
+
+
     const user = await User.findById(session.userId).select("-password");
 
     if (!user || user.isDeleted) {

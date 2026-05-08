@@ -27,16 +27,16 @@ function safeStoragePath(req, part) {
 
 const shareViaEmail = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;
-  const { email, permission } = req.body;
+  const {success,data,error} = shareSchema.safeParse(req.body);
+  
+  if(!success){
+    throw new ValidationError("input all fields",error.flatten().fieldErrors);
+  }
 
-  console.log(req.body, req.params);
+  const { email, permission } = data;
 
-  if (
-    [resourceType, resourceId, email, permission].some(
-      (f) => !f || String(f).trim() === "",
-    )
-  ) {
-    throw new ValidationError("Input all fields");
+  if(!resourceType || !resourceId) {
+    throw new ValidationError("resourceType and resourceId are required");
   }
 
   const Model = resourceType === "file" ? File : Directory;

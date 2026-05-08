@@ -24,6 +24,8 @@ function safeStoragePath(req, part) {
   return target;
 }
 
+
+
 const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
@@ -140,7 +142,7 @@ const renameFile = asyncHandler(async (req, res) => {
   );
 
   if (!renamedFile) {
-    throw new NotFoundError("File");
+    throw new NotFoundError("resource not found");
   }
 
   return res

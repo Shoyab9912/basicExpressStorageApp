@@ -17,8 +17,8 @@ class BadRequestError extends ApiError {
 }
 
 class ValidationError extends ApiError {
-  constructor(message = 'Validation failed') {
-    super(422, message);
+  constructor(message = 'Validation failed',errors=[]) {
+    super(422, message,errors);
   }
 }
 
