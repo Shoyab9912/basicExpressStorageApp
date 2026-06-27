@@ -8,6 +8,8 @@ import User from "../models/user.model.js";
 import Directory from "../models/directory.model.js";
 import Session from "../models/session.model.js";
 import mongoose from "mongoose";
+import redis from "../config/redis.js";
+import {sendOTPSchema} from "../validators/authSchema.validator.js";
 
 const sendOTP = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -37,10 +39,18 @@ const verifyOTP = asyncHandler(async (req, res) => {
     throw new ValidationError("OTP is required");
   }
 
-  const otpRecord = await OTP.exists({ email, otp });
+  const otpRecord = await redis.get(`otp:${email}`);
+
   if (!otpRecord) {
     throw new ValidationError("Invalid OTP");
   }
+
+  console.log("OTP from Redis:", otpRecord, "Provided OTP:", otp);
+
+  if(otpRecord !== otp) {
+    throw new ValidationError("Invalid OTP");
+  }
+
   return res.status(200).json(
     new ApiResponse(200, {
       success: true,

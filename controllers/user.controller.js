@@ -16,6 +16,9 @@ import File from "../models/file.model.js";
 import { rm } from "fs/promises";
 import path from "node:path";
 import { registerSchema } from "../validators/authSchema.validator.js";
+import redis from "../config/redis.js";
+
+import {loginSchema} from "../validators/authSchema.validator.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -40,13 +43,17 @@ const userRegister = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
-  const isOtpExists = await OTP.exists({ email, otp });
+  const isOtpExists = await redis.get(`otp:${email}`);
 
   if (!isOtpExists) {
     throw new NotFoundError("Invalid OTP or OTP has expired");
   }
 
-  await OTP.deleteOne({ email, otp });
+  if (isOtpExists !== otp) {
+    throw new NotFoundError("Invalid OTP or OTP has expired");
+  }
+
+  await redis.del(`otp:${email}`);
 
   const session = await mongoose.startSession();
   session.startTransaction();
