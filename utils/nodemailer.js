@@ -1,5 +1,4 @@
 import nodemailer from "nodemailer";
-import OTP from "../models/otp.model.js";
 import redis from "../config/redis.js";
 
 let transporter;

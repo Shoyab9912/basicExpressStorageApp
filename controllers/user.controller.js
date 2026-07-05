@@ -4,7 +4,6 @@ import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import Session from "../models/session.model.js";
-import OTP from "../models/otp.model.js";
 import * as z from "zod";
 import {
   ValidationError,

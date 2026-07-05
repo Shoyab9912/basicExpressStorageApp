@@ -24,8 +24,6 @@ function safeStoragePath(req, part) {
   return target;
 }
 
-
-
 const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
@@ -68,6 +66,8 @@ const downloadFile = asyncHandler(async (req, res) => {
   }
 });
 
+const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024; // Default to 50MB if not set
+
 const uploadFile = asyncHandler(async (req, res, next) => {
   const user = req.user;
 
@@ -82,12 +82,15 @@ const uploadFile = asyncHandler(async (req, res, next) => {
     throw new UnauthorizedError("Access denied");
   }
 
-  const fileName = path.basename(req.headers.filename || "file");
+  const fileName = path.basename(req.headers.filename || "uploaded_file");
+  let fileSize = req.headers.filesize;
+
   const extension = path.extname(fileName);
 
   const fileData = await File.create({
     extension,
     name: fileName,
+    size: fileSize,
     userId: user._id,
     parentDirId: dirData._id,
   });
@@ -95,6 +98,34 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   const fileId = fileData._id.toString();
   const fullPath = safeStoragePath(req, `${fileId}${extension}`);
   const writeStream = createWriteStream(fullPath);
+
+  let dataChunks = 0;
+  let aborted = false;
+
+  async function cleanUp(err) {
+    if (aborted) return;
+    aborted = true;
+    writeStream.destroy();
+    await rm(fullPath, { force: true });
+    await File.findByIdAndDelete(fileId);
+    next(err);
+  }
+
+  req.on("data", (chunk) => {
+    dataChunks += chunk.length;
+    if (aborted) return;
+    if (dataChunks > MAX_FILE_SIZE) {
+      req.unpipe(writeStream);
+      req.destroy();
+      cleanUp("file size exceed maximum limit");
+    }
+  });
+
+  req.on("error", async (err) => {
+    await rm(fullPath, { force: true });
+    await File.findByIdAndDelete(fileId);
+    next(err);
+  });
 
   req.pipe(writeStream);
 
@@ -105,12 +136,6 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   });
 
   writeStream.on("error", async (err) => {
-    await rm(fullPath, { force: true });
-    await File.findByIdAndDelete(fileId);
-    next(err);
-  });
-
-  req.on("error", async (err) => {
     await rm(fullPath, { force: true });
     await File.findByIdAndDelete(fileId);
     next(err);

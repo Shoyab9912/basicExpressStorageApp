@@ -9,6 +9,10 @@ const fileSchema = new Schema({
     type: String,
     required: [true, "name field required"],
   },
+  size : {
+   type : Number,
+   required : [true, "size field required"],
+  },
   parentDirId: {
     type: Schema.Types.ObjectId,
     ref: "Directory",

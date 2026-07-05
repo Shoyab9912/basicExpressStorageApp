@@ -2,7 +2,6 @@ import { sendOTPEmail } from "../utils/nodemailer.js";
 import { UnauthorizedError, ValidationError } from "../utils/errors.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import OTP from "../models/otp.model.js";
 import { verifyToken } from "../utils/googleAuth.js";
 import User from "../models/user.model.js";
 import Directory from "../models/directory.model.js";
@@ -109,10 +108,11 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     }
   }
 
- const sessionId = session._id.toString() ?? session[0]._id.toString()
+ const sessionId = session._id?.toString() ?? session[0]?._id.toString()
   res.cookie("sessionId", sessionId, {
     signed: true,
     httpOnly: true,
+    strict: "lax",
     maxAge: 60 * 60 * 24 * 7,
   });
 
@@ -224,10 +224,11 @@ const gitHubCallback = asyncHandler(async (req, res) => {
     }
   }
 
-  const sessionId = session._id.toString() ?? session[0]._id.toString()
+  const sessionId = session._id?.toString() ?? session[0]?._id?.toString();
   res.cookie("sessionId", sessionId, {
     signed: true,
     httpOnly: true,
+    strict: "lax",
     maxAge: 60 * 1000 * 60 * 24 * 7,
   });
   return res.redirect(process.env.CLIENT_URL);
