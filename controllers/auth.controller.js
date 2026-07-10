@@ -113,7 +113,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     signed: true,
     httpOnly: true,
     strict: "lax",
-    maxAge: 60 * 60 * 24 * 7,
+   maxAge: 60 * 60 * 24 * 7,
   });
 
   return res
@@ -229,7 +229,7 @@ const gitHubCallback = asyncHandler(async (req, res) => {
     signed: true,
     httpOnly: true,
     strict: "lax",
-    maxAge: 60 * 1000 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24 * 7, // 7 days
   });
   return res.redirect(process.env.CLIENT_URL);
 });

@@ -24,6 +24,17 @@ function safeStoragePath(req, part) {
   return target;
 }
 
+export async  function  updateParentDirectorySize(parentId, sizeChange) {
+    while(parentId) {
+      const parentdir = await Directory.findById(parentId);
+      if (!parentdir) break;
+      parentdir.size += sizeChange;
+      await parentdir.save();
+      parentId = parentdir.parentDirId;
+    }
+
+}
+
 const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
@@ -66,7 +77,7 @@ const downloadFile = asyncHandler(async (req, res) => {
   }
 });
 
-const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024; // Default to 50MB if not set
+const MAX_FILE_SIZE =  50 * 1024 * 1024; // Default to 50MB if not set
 
 const uploadFile = asyncHandler(async (req, res, next) => {
   const user = req.user;
@@ -95,11 +106,13 @@ const uploadFile = asyncHandler(async (req, res, next) => {
     parentDirId: dirData._id,
   });
 
+
+
   const fileId = fileData._id.toString();
   const fullPath = safeStoragePath(req, `${fileId}${extension}`);
   const writeStream = createWriteStream(fullPath);
 
-  let dataChunks = 0;
+  let totalFileSize = 0;
   let aborted = false;
 
   async function cleanUp(err) {
@@ -112,9 +125,10 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   }
 
   req.on("data", (chunk) => {
-    dataChunks += chunk.length;
+    totalFileSize += chunk.length;
     if (aborted) return;
-    if (dataChunks > MAX_FILE_SIZE) {
+    if (totalFileSize > MAX_FILE_SIZE) {
+      console.log("working")
       req.unpipe(writeStream);
       req.destroy();
       cleanUp("file size exceed maximum limit");
@@ -124,12 +138,14 @@ const uploadFile = asyncHandler(async (req, res, next) => {
   req.on("error", async (err) => {
     await rm(fullPath, { force: true });
     await File.findByIdAndDelete(fileId);
+    console.error("Request error during file upload:", err);
     next(err);
   });
 
   req.pipe(writeStream);
 
-  writeStream.on("finish", () => {
+  writeStream .on("finish", async () => {
+   await updateParentDirectorySize(parentDirId, totalFileSize);
     return res
       .status(201)
       .json(new ApiResponse(201, "File uploaded successfully"));
@@ -197,6 +213,8 @@ const deleteFile = asyncHandler(async (req, res) => {
   if (f.deletedCount === 0) {
     throw new ApiError(500, "Internal server error");
   }
+
+  await updateParentDirectorySize(file.parentDirId, -file.size);
 
   return res.status(204).send();
 });

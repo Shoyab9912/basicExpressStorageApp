@@ -143,6 +143,7 @@ const login = asyncHandler(async (req, res) => {
   res.cookie("sessionId", session._id.toString(), {
     signed: true,
     httpOnly: true,
+    strict: "lax",
     maxAge: 60 * 60 * 24 * 7,
   });
 
@@ -189,7 +190,8 @@ const logoutAll = asyncHandler(async (req, res) => {
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7,
+    strict: "lax",
+    maxAge: 60 * 60 * 24 * 7,
   });
   return res.sendStatus(204);
 });

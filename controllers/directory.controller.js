@@ -11,6 +11,7 @@ import {
 import { ApiResponse } from "../utils/ApiResponse.js";
 import path from "node:path";
 import getAccess from "../utils/getAccess.js";
+import { updateParentDirectorySize } from "./file.controller.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -144,6 +145,7 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
       _id: { $in: [...allDirIds, dirData._id] },
     });
 
+
     for (let { _id, extension } of files) {
       const filePath = safeStoragePath(req, `${_id.toString()}${extension}`);
       await rm(filePath, { force: true });
@@ -153,6 +155,8 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   await Directory.deleteMany({
     _id: { $in: [...allDirIds, dirData._id] },
   });
+
+  await updateParentDirectorySize(dirData.parentDirId, -dirData.size);
 
   return res
     .status(200)
@@ -182,14 +186,14 @@ async function getDirRecursively(rootId) {
   const files = await File.find(
     {
       parentDirId: {
-        $in: allDirIds,
-      },
+        $in : [...allDirIds, rootId],
+      }
     },
     {
       extension: 1,
     },
   ).lean();
-
+ console.log("Files to delete:", files);
   return { files, allDirIds };
 }
 

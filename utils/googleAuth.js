@@ -16,7 +16,7 @@ async function verifyToken(token) {
         return data
     } catch (error) {
         console.error("Error verifying token:", error);
-        throw new Error("Invalid token");
+        throw error;
     }
 }
 
