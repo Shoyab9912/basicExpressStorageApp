@@ -77,7 +77,7 @@ const downloadFile = asyncHandler(async (req, res) => {
   }
 });
 
-const MAX_FILE_SIZE =  50 * 1024 * 1024; // Default to 50MB if not set
+const MAX_FILE_SIZE =  100 * 1024 * 1024; 
 
 const uploadFile = asyncHandler(async (req, res, next) => {
   const user = req.user;
@@ -95,6 +95,10 @@ const uploadFile = asyncHandler(async (req, res, next) => {
 
   const fileName = path.basename(req.headers.filename || "uploaded_file");
   let fileSize = req.headers.filesize;
+
+  if(fileSize > MAX_FILE_SIZE) {
+    throw new ValidationError("File size exceeds the maximum limit");
+  }
 
   const extension = path.extname(fileName);
 
@@ -128,7 +132,6 @@ const uploadFile = asyncHandler(async (req, res, next) => {
     totalFileSize += chunk.length;
     if (aborted) return;
     if (totalFileSize > MAX_FILE_SIZE) {
-      console.log("working")
       req.unpipe(writeStream);
       req.destroy();
       cleanUp("file size exceed maximum limit");
