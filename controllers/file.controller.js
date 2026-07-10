@@ -98,7 +98,7 @@ const uploadFile = asyncHandler(async (req, res, next) => {
 
   if(fileSize > MAX_FILE_SIZE) {
     throw new ValidationError("File size exceeds the maximum limit");
-  }
+  } 
 
   const extension = path.extname(fileName);
 

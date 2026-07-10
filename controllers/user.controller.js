@@ -74,6 +74,7 @@ const userRegister = asyncHandler(async (req, res) => {
           parentDirId: null,
           name: `root-${email}`,
           userId,
+          path:[rootDirId]
         },
       ],
       { session },

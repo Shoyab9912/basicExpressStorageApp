@@ -68,8 +68,11 @@ const createDirectory = asyncHandler(async (req, res) => {
   });
 
   if (!parentDir) {
-    throw new NotFoundError("Parent directory");
+    throw new NotFoundError("Directory doesn't exists");
   }
+
+  const dirPath = parentDir.path ?? [];
+
 
   const access = getAccess(req.user._id, parentDir);
   
@@ -77,16 +80,22 @@ const createDirectory = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("Access denied");
   }
 
+
+  const documentId = new mongoose.Types.ObjectId();
+
   await Directory.create({
+    _id:documentId,
     userId: user._id,
     name: dirName,
     parentDirId,
+    path:[...dirPath,documentId]
   });
 
   return res
     .status(201)
     .json(new ApiResponse(201, "Directory created successfully"));
 });
+
 
 const updateDirectoryName = asyncHandler(async (req, res) => {
   const { dirId } = req.params;

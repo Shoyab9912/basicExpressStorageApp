@@ -94,6 +94,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
         parentDirId: null,
         name: `root-${email}`,
         userId,
+        path:[rootDirId]
       });
 
       await dir.save({ session: mongooseSession });
@@ -212,6 +213,7 @@ const gitHubCallback = asyncHandler(async (req, res) => {
         parentDirId: null,
         name: `root-${email}`,
         userId,
+        path:[rootDirId]
       });
       await dir.save({ session: mongooseSession });
       session = await Session.create([{ userId: user._id }], { session: mongooseSession });

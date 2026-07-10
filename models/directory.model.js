@@ -1,7 +1,6 @@
 import { Schema, model } from "mongoose";
 import { dir } from "node:console";
 
-
 const directorySchema = new Schema({
   name: {
     type: String,
@@ -11,9 +10,9 @@ const directorySchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "User",
   },
-  size : {
-    type : Number,
-    default : 0,
+  size: {
+    type: Number,
+    default: 0,
   },
   parentDirId: {
     type: Schema.Types.ObjectId,
@@ -31,6 +30,10 @@ const directorySchema = new Schema({
     token: { type: String, default: null },
     permission: { type: String, enum: ["viewer", "editor"] },
     expiresAt: { type: Date, default: null },
+  },
+  path: {
+    type: [Schema.Types.ObjectId],
+    default: [],
   },
 });
 
