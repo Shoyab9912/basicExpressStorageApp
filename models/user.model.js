@@ -43,6 +43,10 @@ const userSchema = new Schema({
     isDeleted: {
         type: Boolean,
         default: false
+    },
+    maxStorageInBytes: {
+        type:Number,
+        default : 1 * (1024 ** 3)
     }
 })
 

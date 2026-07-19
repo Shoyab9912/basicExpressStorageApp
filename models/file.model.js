@@ -21,6 +21,11 @@ const fileSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "User",
   },
+  isUploading: {
+    type:Boolean,
+    required:true,
+    default:false
+  },
   sharedWith: [
     {
       userId: { type: Schema.Types.ObjectId, ref: "User" },
