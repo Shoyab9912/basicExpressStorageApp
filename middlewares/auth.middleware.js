@@ -6,7 +6,7 @@ import Session from "../models/session.model.js";
 export default async function checkAuth(req, res, next) {
    
   try {
-    let sid = req.signedCookies.sessionId
+    let sid = req.signedCookies.sessionId 
 
     if (!sid) {
       return res.status(400).json({ error: "invalid session ID" });

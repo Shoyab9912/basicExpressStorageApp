@@ -73,29 +73,26 @@ const createDirectory = asyncHandler(async (req, res) => {
 
   const dirPath = parentDir.path ?? [];
 
-
   const access = getAccess(req.user._id, parentDir);
-  
+
   if (access !== "owner" && access !== "editor") {
     throw new UnauthorizedError("Access denied");
   }
 
-
   const documentId = new mongoose.Types.ObjectId();
 
   await Directory.create({
-    _id:documentId,
+    _id: documentId,
     userId: user._id,
     name: dirName,
     parentDirId,
-    path:[...dirPath,documentId]
+    path: [...dirPath, documentId],
   });
 
   return res
     .status(201)
     .json(new ApiResponse(201, "Directory created successfully"));
 });
-
 
 const updateDirectoryName = asyncHandler(async (req, res) => {
   const { dirId } = req.params;
@@ -154,7 +151,6 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
       _id: { $in: [...allDirIds, dirData._id] },
     });
 
-
     for (let { _id, extension } of files) {
       const filePath = safeStoragePath(req, `${_id.toString()}${extension}`);
       await rm(filePath, { force: true });
@@ -195,20 +191,69 @@ async function getDirRecursively(rootId) {
   const files = await File.find(
     {
       parentDirId: {
-        $in : [...allDirIds, rootId],
-      }
+        $in: [...allDirIds, rootId],
+      },
     },
     {
       extension: 1,
     },
   ).lean();
- console.log("Files to delete:", files);
+  console.log("Files to delete:", files);
   return { files, allDirIds };
 }
+
+const getBreadCrumb = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const dir = await Directory.findById(id);
+
+  if (!dir) {
+    throw new NotFoundError("Directory doesn't exist");
+  }
+
+  const access = getAccess(req.user?._id, dir);
+
+  if (!access) {
+    throw new UnauthorizedError("You can't access this resource");
+  }
+
+  const dirPathIds = dir.path ?? [];
+
+  const directories = await Directory.find(
+    {
+      _id: {
+        $in: dirPathIds,
+      },
+    },
+    {
+      name: 1,
+    },
+  );
+
+  const directoryMap = new Map();
+
+  for (const directory of directories) {
+    directoryMap.set(directory._id.toString(), directory);
+  }
+
+
+  const orderedDirectories = [];
+
+  for (const id of dirPathIds) {
+    const directory = directoryMap.get(id.toString());
+
+    if (directory) {
+      orderedDirectories.push(directory);
+    }
+  }
+
+  return res.status(200).json(new ApiResponse(200, "success", orderedDirectories));
+});
 
 export {
   createDirectory,
   getDirectory,
   deleteDirRecursively,
   updateDirectoryName,
+  getBreadCrumb,
 };
