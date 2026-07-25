@@ -8,25 +8,30 @@ import Directory from "../models/directory.model.js";
 import Session from "../models/session.model.js";
 import mongoose from "mongoose";
 import redis from "../config/redis.js";
-import {sendOTPSchema} from "../validators/authSchema.validator.js";
+import { sendOTPSchema } from "../validators/authSchema.validator.js";
 
 const sendOTP = asyncHandler(async (req, res) => {
   const { email } = req.body;
- 
-  if (!email || email.trim() === "" ||  !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-    throw new ValidationError("Email is required",{ email: ["Email is required or invalid format"] });
+
+  if (
+    !email ||
+    email.trim() === "" ||
+    !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)
+  ) {
+    throw new ValidationError("Email is required", {
+      email: ["Email is required or invalid format"],
+    });
   }
- 
+
   const result = await sendOTPEmail(email);
   return res.status(200).json(new ApiResponse(200, result));
 });
 
 const verifyOTP = asyncHandler(async (req, res) => {
+  const { success, data, error } = sendOTPSchema.safeParse(req.body);
 
-  const {success,data,error} = sendOTPSchema.safeParse(req.body);
-  
-  if(!success){
-    throw new ValidationError("input all fields",error.flatten().fieldErrors);
+  if (!success) {
+    throw new ValidationError("input all fields", error.flatten().fieldErrors);
   }
 
   const { email, otp } = data;
@@ -46,7 +51,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
 
   console.log("OTP from Redis:", otpRecord, "Provided OTP:", otp);
 
-  if(otpRecord !== otp) {
+  if (otpRecord !== otp) {
     throw new ValidationError("Invalid OTP");
   }
 
@@ -94,12 +99,14 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
         parentDirId: null,
         name: `root-${email}`,
         userId,
-        path:[rootDirId]
+        path: [rootDirId],
       });
 
       await dir.save({ session: mongooseSession });
 
-    session =   await Session.create([{ userId: user._id }], { session: mongooseSession });
+      session = await Session.create([{ userId: user._id }], {
+        session: mongooseSession,
+      });
       await mongooseSession.commitTransaction();
     } catch (err) {
       await mongooseSession.abortTransaction();
@@ -109,12 +116,12 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     }
   }
 
- const sessionId = session._id?.toString() ?? session[0]?._id.toString()
+  const sessionId = session._id?.toString() ?? session[0]?._id.toString();
   res.cookie("sessionId", sessionId, {
     signed: true,
     httpOnly: true,
-    strict: "lax",
-   maxAge: 60 * 60 * 24 * 7,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7 * 1000,
   });
 
   return res
@@ -125,7 +132,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 const gitHubLogin = asyncHandler(async (req, res) => {
   console.log("GitHub login initiated");
   const url = `https://github.com/login/oauth/authorize?client_id=${process.env.GIT_CLIENT_ID}&scope=user:email`;
-console.log("Redirecting to GitHub OAuth URL:", url);
+  console.log("Redirecting to GitHub OAuth URL:", url);
   res.redirect(url);
 });
 
@@ -135,7 +142,6 @@ const gitHubCallback = asyncHandler(async (req, res) => {
     throw new ValidationError("Code is required");
   }
 
-  
   const tokenResponse = await fetch(
     "https://github.com/login/oauth/access_token",
     {
@@ -213,10 +219,12 @@ const gitHubCallback = asyncHandler(async (req, res) => {
         parentDirId: null,
         name: `root-${email}`,
         userId,
-        path:[rootDirId]
+        path: [rootDirId],
       });
       await dir.save({ session: mongooseSession });
-      session = await Session.create([{ userId: user._id }], { session: mongooseSession });
+      session = await Session.create([{ userId: user._id }], {
+        session: mongooseSession,
+      });
       await mongooseSession.commitTransaction();
     } catch (err) {
       await mongooseSession.abortTransaction();
@@ -230,8 +238,7 @@ const gitHubCallback = asyncHandler(async (req, res) => {
   res.cookie("sessionId", sessionId, {
     signed: true,
     httpOnly: true,
-    strict: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
   });
   return res.redirect(process.env.CLIENT_URL);
 });

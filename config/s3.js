@@ -1,7 +1,7 @@
-import {S3Client,PutObjectCommand} from "@aws-sdk/client-s3"
+import {S3Client,PutObjectCommand,GetObjectCommand} from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const client = new S3Client({profile:"nodejs"})
+const client = new S3Client({profile:"nodejs",region: "ap-south-2"})
 
 
 export const createSignedUrl = async ({key,contentType}) => {
@@ -9,7 +9,7 @@ export const createSignedUrl = async ({key,contentType}) => {
     const command = new PutObjectCommand({
         Bucket:"deadly-storage-dev",
         Key:key,
-        ContentType : contentType
+        ContentType:contentType
     })
 
     const url = await getSignedUrl(client,command,{
@@ -17,6 +17,25 @@ export const createSignedUrl = async ({key,contentType}) => {
         signableHeaders:new Set(["content-type"])
     })
 
+    return url
+
+} 
+
+
+
+
+export const createGetSignedUrl = async ({key,download=false,fileName}) => {
+ 
+    const command = new GetObjectCommand({
+        Bucket:"deadly-storage-dev",
+        Key:key,
+        ResponseContentDisposition: `${download ? 'attachment' : 'inline'}; filename="${encodeURIComponent(fileName)}"`
+    })
+
+    const url = await getSignedUrl(client,command,{
+        expiresIn:600,
+    })
+    console.log(url)
     return url
 
 } 

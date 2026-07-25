@@ -13,7 +13,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import getAccess from "../utils/getAccess.js";
 
-import { createSignedUrl } from "../config/s3.js";
+import { createGetSignedUrl, createSignedUrl } from "../config/s3.js";
 
 function safeStoragePath(req, part) {
   const base = path.resolve(req.app.locals.storageBase);
@@ -39,43 +39,35 @@ export async function updateParentDirectorySize(parentId, sizeChange) {
 const serveFile = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const user = req.user;
-
   const file = await File.findById(id);
   if (!file) throw new NotFoundError("File doesn't exist");
 
   const access = getAccess(req.user?._id, file);
-
   if (!access) {
     throw new UnauthorizedError("you cant access this resource");
   }
 
-  const filePath = safeStoragePath(req, id);
+  const url = await createGetSignedUrl({key:`${id}${file.extension}`})
+  return res.redirect(url)
 
-  return res.sendFile(`${filePath}${file.extension}`, (err) => {
-    if (!res.headersSent && err) {
-      next(new NotFoundError("File not found"));
-    }
-  });
 });
 
 const downloadFile = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const user = req.user;
-
   const file = await File.findById(id);
   if (!file) throw new NotFoundError("File doesn't exist");
 
   const access = getAccess(req.user?._id, file);
-
-  if (!access) {
-    throw new UnauthorizedError("you cant access this resource");
-  }
-
-  const filePath = safeStoragePath(req, id);
-
-  if (req.query.action === "download") {
-    return res.download(`${filePath}${file.extension}`, file.name);
-  }
+  if (!access) throw new UnauthorizedError("you cant access this resource");
+  console.log(file)
+  const isDownload = req.query.action === "download";
+  const url = await createGetSignedUrl({
+    key: `${id}${file.extension}`,
+    download: isDownload,       
+    fileName: file.name,
+  });
+  console.log(url)
+  return res.redirect(url);
 });
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -266,10 +258,10 @@ const uploadInitiate = asyncHandler(async (req,res) => {
     parentDirId: dirData._id,
     isUploading:true
   });
+  const uploadSignedUrl = await createSignedUrl({key:`${fileData.id}${extension}`,contentType:req.body.contentType})
+  // console.log(uploadedSignedUrl)
 
-  const uploadedSignedUrl = await createSignedUrl({key:`${fileData.id}${extension}`})
-
-  return res.status(200).json(new ApiResponse(200,"file uploading",{uploadedSignedUrl,fileId:fileData.id}))
+  return res.status(200).json(new ApiResponse(200,"file uploading",{uploadSignedUrl,fileId:fileData.id}))
 
 })
 
