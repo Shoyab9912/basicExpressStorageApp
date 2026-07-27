@@ -17,19 +17,11 @@ import getAccess from "../utils/getAccess.js";
 import {
   createGetSignedUrl,
   createSignedUrl,
+  deleteResource,
   getFileMetaData,
 } from "../config/s3.js";
 
-function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase);
-  const target = path.resolve(base, part);
 
-  if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new ApiError(400, "Invalid file path");
-  }
-
-  return target;
-}
 
 export async function updateParentDirectorySize(parentId, sizeChange) {
   while (parentId) {
@@ -74,101 +66,6 @@ const downloadFile = asyncHandler(async (req, res) => {
   return res.redirect(url);
 });
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
-
-const uploadFile = asyncHandler(async (req, res, next) => {
-  const user = req.user;
-
-  const parentDirId = req.params.parentDirId ?? user.rootDirId;
-
-  const dirData = await Directory.findById(parentDirId);
-  if (!dirData) throw new NotFoundError("Directory doesn't exist");
-
-  const access = getAccess(req.user._id, dirData);
-
-  if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("Access denied");
-  }
-
-  const fileName = path.basename(req.headers.filename || "uploaded_file");
-  let fileSize = req.headers.filesize;
-
-  if (fileSize > MAX_FILE_SIZE) {
-    throw new ValidationError("File size exceeds the maximum limit");
-  }
-
-  const extension = path.extname(fileName);
-
-  const fileData = await File.insertOne({
-    extension,
-    name: fileName,
-    size: fileSize,
-    userId: user._id,
-    parentDirId: dirData._id,
-  });
-
-  const fileId = fileData._id.toString();
-  const filePath = safeStoragePath(req, `${fileId}${extension}`);
-  const writeStream = createWriteStream(filePath);
-
-  let totalFileSize = 0;
-  let aborted = false;
-  let fileUploadCompleted = false;
-
-  async function cleanUp(err) {
-    if (aborted) return;
-    aborted = true;
-    writeStream.destroy();
-    await rm(filePath, { force: true });
-    await File.findByIdAndDelete(fileId);
-    next(err);
-  }
-
-  req.on("data", (chunk) => {
-    totalFileSize += chunk.length;
-    if (aborted) return;
-    if (totalFileSize > MAX_FILE_SIZE) {
-      req.unpipe(writeStream);
-      req.destroy();
-      cleanUp("file size exceed maximum limit");
-    }
-  });
-
-  req.on("error", async (err) => {
-    await rm(filePath, { force: true });
-    await File.findByIdAndDelete(fileId);
-    console.error("Request error during file upload:", err);
-    next(err);
-  });
-
-  req.on("end", async () => {
-    fileUploadCompleted = true;
-    await updateDirectoriesSize(parentDirId, totalFileSize);
-    return res
-      .status(201)
-      .json(new ApiResponse(201, "file uploaded successfully"));
-  });
-
-  req.on("close", async () => {
-    if (!fileUploadCompleted) {
-      try {
-        await fileData.deleteOne();
-        await rm(filePath);
-        console.log("file cleaned");
-      } catch (err) {
-        console.error("Error cleaning up aborted upload:", err);
-      }
-    }
-  });
-
-  req.pipe(writeStream);
-
-  writeStream.on("error", async (err) => {
-    await rm(filePath, { force: true });
-    await File.findByIdAndDelete(fileId);
-    next(err);
-  });
-});
 
 const renameFile = asyncHandler(async (req, res) => {
   const user = req.user;
@@ -217,14 +114,14 @@ const deleteFile = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("you cant access this resource");
   }
 
-  const filePath = safeStoragePath(req, id);
-  await rm(`${filePath}${file.extension}`, { force: true });
 
   const f = await File.deleteOne({ _id: file._id });
 
   if (f.deletedCount === 0) {
     throw new ApiError(500, "Internal server error");
   }
+  
+  await deleteResource(`${file._id.toString()}${file.extension}`)
 
   await updateParentDirectorySize(file.parentDirId, -file.size);
 
@@ -328,7 +225,6 @@ const cancelUpload = asyncHandler(async (req, res) => {
 export {
   serveFile,
   downloadFile,
-  uploadFile,
   renameFile,
   deleteFile,
   uploadInitiate,

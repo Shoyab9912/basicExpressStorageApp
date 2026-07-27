@@ -3,6 +3,8 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -50,3 +52,26 @@ export const getFileMetaData = async (key) => {
 
   return data
 };
+
+
+export const deleteResource = async (key) => {
+   const command = new DeleteObjectCommand({
+    Bucket: "deadly-storage-dev",
+    Key: key,
+  });
+
+  await client.send(command)
+}
+
+
+
+export const deleteResources = async (keys) => {
+   const command = new DeleteObjectsCommand({
+    Bucket: "deadly-storage-dev",
+    Delete: {
+      Objects: keys
+    }
+  });
+
+  await client.send(command)
+}

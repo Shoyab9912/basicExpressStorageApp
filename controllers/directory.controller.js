@@ -12,17 +12,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import path from "node:path";
 import getAccess from "../utils/getAccess.js";
 import { updateParentDirectorySize } from "./file.controller.js";
+import { deleteResources } from "../config/s3.js";
 
-function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase);
-  const target = path.resolve(base, part);
-
-  if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new Error("Invalid path");
-  }
-
-  return target;
-}
 
 const getDirectory = asyncHandler(async (req, res) => {
   const user = req.user;
@@ -145,16 +136,19 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   }
 
   const { files, allDirIds } = await getDirRecursively(dirData._id);
+  console.log(files,"---------------")
 
   if (files.length > 0) {
     await File.deleteMany({
       _id: { $in: [...allDirIds, dirData._id] },
     });
-
-    for (let { _id, extension } of files) {
-      const filePath = safeStoragePath(req, `${_id.toString()}${extension}`);
-      await rm(filePath, { force: true });
-    }
+  
+    const keys = files.map(({_id,extension}) => ({
+      Key:`${_id.toString()}${extension}`
+    }))
+  
+    
+    await deleteResources(keys)
   }
 
   await Directory.deleteMany({

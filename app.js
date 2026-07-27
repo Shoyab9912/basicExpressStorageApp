@@ -22,12 +22,6 @@ app.use(cors({
 app.use(express.json());
 
 
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-app.locals.storageBase = path.join(__dirname, "storage")
-
 app.use('/directory',directoryRoutes)
 app.use('/file',fileRoutes)
 app.use("/", userRoutes)
