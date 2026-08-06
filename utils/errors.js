@@ -36,6 +36,12 @@ class ConflictError extends ApiError {
   }
 }
 
+class ForbiddenError extends ApiError {
+  constructor(message="forbidden to access") {
+    super(403,message)
+  }
+}
+
 
 
 export {
@@ -43,5 +49,6 @@ export {
     ConflictError,
     ValidationError,
     UnauthorizedError,
-    BadRequestError
+    BadRequestError,
+    ForbiddenError
 }

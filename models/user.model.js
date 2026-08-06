@@ -1,5 +1,7 @@
 import { Schema, model } from "mongoose"
 import bcrypt from "bcryptjs"
+import { FREE_STORAGE_BYTES } from "../config/plans.js"
+
 
 const userSchema = new Schema({
     email: {
@@ -16,7 +18,7 @@ const userSchema = new Schema({
     password: {
         type: String,
         // required: [true, "enter password"],
-        minLength: 3
+        minLength: 5
     },
     name: {
         type: String,
@@ -27,11 +29,11 @@ const userSchema = new Schema({
         ref: "Directory"
     },
     picture : {
-        type:"String",
+        type:String,
         default:"https://cdn-icons-png.flaticon.com/512/149/149071.png"
     },
     loginProvider : {
-        type:"String",
+        type:String,
         enum : ["local","google","github"],
         default:"local"
     },
@@ -46,8 +48,10 @@ const userSchema = new Schema({
     },
     maxStorageInBytes: {
         type:Number,
-        default : 1 * (1024 ** 3)
+        default : FREE_STORAGE_BYTES
     }
+},{
+    timestamps:true,
 })
 
 userSchema.pre("save", async function () {

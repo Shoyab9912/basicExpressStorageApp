@@ -35,6 +35,8 @@ const directorySchema = new Schema({
     type: [Schema.Types.ObjectId],
     default: [],
   },
+},{
+  timestamps:true,
 });
 
 directorySchema.index({ parentDirId: 1, userId: 1 });

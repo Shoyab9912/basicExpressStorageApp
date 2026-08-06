@@ -1,6 +1,7 @@
 import express from "express";
 import { deleteFile, renameFile, downloadFile, serveFile,uploadInitiate,cancelUpload,uploadComplete } from "../controllers/file.controller.js";
 import checkAuth from "../middlewares/auth.middleware.js";
+import {writeAccess} from "../middlewares/subscription.middleware.js"
 import validateObjectId from "../middlewares/validObjectId.middleware.js";
 
 const router = express.Router()
@@ -12,7 +13,7 @@ router.param('id', validateObjectId)
 router.get("/:id/download", downloadFile);
 router.get("/:id", serveFile);
 router.route("/:id").patch(renameFile).delete(deleteFile);
-router.post("/upload/initiate",uploadInitiate)
-router.post("/upload/complete",uploadComplete)
-router.delete("/cancel/:fileId",cancelUpload)
+router.post("/upload/initiate",writeAccess,uploadInitiate)
+router.post("/upload/complete",writeAccess,uploadComplete)
+router.delete("/cancel/:fileId",writeAccess,cancelUpload)
 export default router; 

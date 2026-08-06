@@ -22,8 +22,10 @@
     "install": "^0.13.0",
     "ioredis": "^5.10.1",
     "mongoose": "^9.2.1",
+    "node-cron": "^4.6.0",
     "nodemailer": "^8.0.2",
     "npm": "^11.12.1",
+    "razorpay": "^2.9.8",
     "zod": "^4.4.3"
   }
 }

@@ -1,5 +1,4 @@
 import path from "node:path";
-import { rm } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import File from "../models/file.model.js";
 import Directory from "../models/directory.model.js";
@@ -8,6 +7,7 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
+  ForbiddenError,
 } from "../utils/errors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
@@ -19,7 +19,7 @@ import {
   createSignedUrl,
   deleteResource,
   getFileMetaData,
-} from "../config/s3.js";
+} from "../services/s3.service.js";
 
 
 
@@ -41,7 +41,7 @@ const serveFile = asyncHandler(async (req, res, next) => {
 
   const access = getAccess(req.user?._id, file);
   if (!access) {
-    throw new UnauthorizedError("you cant access this resource");
+    throw new ForbiddenError("you cant access this resource");
   }
 
   const url = await createGetSignedUrl({ key: `${id}${file.extension}` });
@@ -52,17 +52,17 @@ const downloadFile = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const file = await File.findById(id);
   if (!file) throw new NotFoundError("File doesn't exist");
+  
 
   const access = getAccess(req.user?._id, file);
-  if (!access) throw new UnauthorizedError("you cant access this resource");
-  console.log(file);
+  if (!access) throw new ForbiddenError("you cant access this resource");
+
   const isDownload = req.query.action === "download";
   const url = await createGetSignedUrl({
     key: `${id}${file.extension}`,
     download: isDownload,
     fileName: file.name,
   });
-  console.log(url);
   return res.redirect(url);
 });
 
@@ -82,7 +82,7 @@ const renameFile = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, file);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("you cant access this resource");
+    throw new ForbiddenError("you cant access this resource");
   }
 
   const renamedFile = await File.findOneAndUpdate(
@@ -111,18 +111,17 @@ const deleteFile = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, file);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("you cant access this resource");
+    throw new ForbiddenError("you cant access this resource");
   }
 
+  await deleteResource(`${file._id.toString()}${file.extension}`)
 
   const f = await File.deleteOne({ _id: file._id });
 
   if (f.deletedCount === 0) {
     throw new ApiError(500, "Internal server error");
   }
-  
-  await deleteResource(`${file._id.toString()}${file.extension}`)
-
+    
   await updateParentDirectorySize(file.parentDirId, -file.size);
 
   return res.status(204).send();
@@ -134,18 +133,26 @@ const uploadInitiate = asyncHandler(async (req, res) => {
   const parentDirId = req.body.parentDirId ?? user.rootDirId;
 
   const dirData = await Directory.findById(parentDirId);
+
+
   if (!dirData) throw new NotFoundError("Directory doesn't exist");
 
   const access = getAccess(req.user._id, dirData);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("Access denied");
+    throw new ForbiddenError("Access denied");
+  }
+
+  const rootDir = await Directory.findById(user.rootDirId)
+
+  if(!rootDir) {
+    throw new NotFoundError("Directory doesn't exist");
   }
 
   const fileName = req.body.name || "uploaded_file";
   let fileSize = req.body.size;
 
-  const size = user.maxStorageInBytes - dirData.size;
+  const size = user.maxStorageInBytes - rootDir.size;
 
   if (fileSize > size) {
     return res.status(507).json({ error: "Not enough storage" });
@@ -165,7 +172,6 @@ const uploadInitiate = asyncHandler(async (req, res) => {
     key: `${fileData.id}${extension}`,
     contentType: req.body.contentType,
   });
-  // console.log(uploadedSignedUrl)
 
   return res.status(200).json(
     new ApiResponse(200, "file uploading", {
@@ -189,6 +195,7 @@ const uploadComplete = asyncHandler(async (req, res) => {
     );
 
     if (data.ContentLength !== file.size) {
+      await deleteResource(`${file._id.toString()}${file.extension}`)
       await File.findByIdAndDelete(file._id);
       throw new BadRequestError(
         "Uploaded file size doesn't match expected size",
@@ -214,7 +221,6 @@ const cancelUpload = asyncHandler(async (req, res) => {
   const { fileId } = req.params;
   const file = await File.findById(fileId);
 
-  console.log(file)
   if (!file) throw new NotFoundError("File doesn't exist");
 
   await File.findByIdAndDelete(fileId);

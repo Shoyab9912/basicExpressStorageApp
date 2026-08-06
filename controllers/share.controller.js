@@ -3,6 +3,7 @@ import File from "../models/file.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
   BadRequestError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -12,44 +13,33 @@ import getAccess from "../utils/getAccess.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "node:crypto";
-import path from "node:path"
-
-function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase);
-  const target = path.resolve(base, part);
-
-  if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new ApiError(400, "Invalid file path");
-  }
-
-  return target;
-}
+import path from "node:path";
+import { createGetSignedUrl } from "../services/s3.service.js";
+import getResourceByType from "../utils/getResourceByType.js";
 
 const shareViaEmail = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;
-  const {success,data,error} = shareSchema.safeParse(req.body);
-  
-  if(!success){
-    throw new ValidationError("input all fields",error.flatten().fieldErrors);
+  const { success, data, error } = shareSchema.safeParse(req.body);
+
+  if (!success) {
+    throw new ValidationError("input all fields", error.flatten().fieldErrors);
   }
 
   const { email, permission } = data;
 
-  if(!resourceType || !resourceId) {
+  if (!resourceType || !resourceId) {
     throw new ValidationError("resourceType and resourceId are required");
   }
 
-  const Model = resourceType === "file" ? File : Directory;
-  const sharedResource = await Model.findById(resourceId);
-
-  if (!sharedResource) {
-    throw new NotFoundError("Resource doesn't exists");
-  }
+  const { Model, resource: sharedResource } = await getResourceByType(
+    resourceType,
+    resourceId,
+  );
 
   const role = getAccess(req.user?._id, sharedResource);
 
   if (!role || role == "viewer") {
-    throw new UnauthorizedError("you cant access this resource");
+    throw new ForbiddenError("you cant access this resource");
   }
 
   const user = await User.findOne({ email });
@@ -102,18 +92,12 @@ const revokeAccessViaEmail = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
-  const Model = resourceType === "file" ? File : Directory;
-
-  const resource = await Model.findById(resourceId);
-
-  if (!resource) {
-    throw new NotFoundError("Resource not found");
-  }
+  const { Model, resource } = await getResourceByType(resourceType, resourceId);
 
   const access = getAccess(req.user._id, resource);
 
   if (access !== "owner") {
-    throw new UnauthorizedError("forbidden to acceess");
+    throw new ForbiddenError("forbidden to access");
   }
 
   const initialLength = resource.sharedWith.length;
@@ -139,18 +123,12 @@ const updatePermission = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
-  const Model = resourceType === "file" ? File : Directory;
-
-  const resource = await Model.findById(resourceId);
-
-  if (!resource) {
-    throw new NotFoundError("Resource not found");
-  }
+  const { Model, resource } = await getResourceByType(resourceType, resourceId);
 
   const access = getAccess(req.user._id, resource);
 
   if (access !== "owner") {
-    throw new UnauthorizedError("forbidden to acceess");
+    throw new ForbiddenError("forbidden to access");
   }
   const targetId = new mongoose.Types.ObjectId(userId);
   const update = await Model.updateOne(
@@ -181,6 +159,10 @@ const getAllSharedUsers = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
+  if (!["file", "directory"].includes(resourceType)) {
+    throw new BadRequestError("Invalid resource type");
+  }
+
   const Model = resourceType === "file" ? File : Directory;
 
   const resource = await Model.findById(resourceId).populate(
@@ -195,7 +177,7 @@ const getAllSharedUsers = asyncHandler(async (req, res) => {
   const access = getAccess(req.user._id, resource);
 
   if (access !== "owner") {
-    throw new UnauthorizedError("forbidden to acceess");
+    throw new ForbiddenError("Forbidden");
   }
   return res.status(200).json(new ApiResponse(200, resource.sharedWith));
 });
@@ -209,19 +191,18 @@ const createShareLink = asyncHandler(async (req, res) => {
     throw new ValidationError("All fields are required");
   }
 
-  const Model = resourceType === "file" ? File : Directory;
+    const Model = resourceType === "file" ? File : Directory;
 
-  const resource = await Model.findById(resourceId);
+    const resource = await Model.findById(resourceId);
 
-  if (!resource) {
-    throw new NotFoundError("Resource not found");
-  }
+    if (!resource) {
+      throw new NotFoundError("Resource not found");
+    }
 
   const access = getAccess(req.user._id, resource);
-  console.log(access);
 
   if (!access || access === "viewer") {
-    throw new UnauthorizedError("forbidden to access");
+    throw new ForbiddenError("forbidden to access");
   }
 
   const token = crypto.randomBytes(32).toString("hex");
@@ -234,7 +215,7 @@ const createShareLink = asyncHandler(async (req, res) => {
     permission,
     expiresAt,
   };
-  resource.save();
+  await resource.save();
   return res.status(200).json(
     new ApiResponse(200, "share link generated ", {
       link: `${process.env.BASEUURL}/share/acess/${token}`,
@@ -249,19 +230,12 @@ const revokeShareLink = asyncHandler(async (req, res) => {
   if (!resourceType || !resourceId) {
     throw new ValidationError("All fields are required");
   }
-
-  const Model = resourceType === "file" ? File : Directory;
-
-  const resource = await Model.findById(resourceId);
-
-  if (!resource) {
-    throw new NotFoundError("Resource not found");
-  }
+   const{ Model, resource } = await getResourceByType(resourceType, resourceId);
 
   const access = getAccess(req.user?._id, resource, null);
 
   if (access !== "owner") {
-    throw new UnauthorizedError("Youy cant revoke it");
+    throw new  ForbiddenError("You cant revoke it");
   }
 
   if (!resource.shareLink?.token) {
@@ -297,24 +271,18 @@ const acceessViaLink = asyncHandler(async (req, res) => {
   }
 
   if (resourceType === "File") {
-    const filePath = safeStoragePath(req, resource._id.toString());
-    return res.sendFile(`${filePath}${resource.extension}`, (err) => {
-      if (!res.headersSent && err) {
-        next(new NotFoundError("File not found"));
-      }
-    });
+    const url = await createGetSignedUrl({ key: `${resource._id.toString()}${resource.extension}` });
+    return res.redirect(url);
   }
 
   if (resourceType === "Directory") {
     const files = await File.find({ parentDirId: resource._id }).lean();
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(200, "Directory fetched", {
-          directory: resource,
-          files,
-        }),
-      );
+    return res.status(200).json(
+      new ApiResponse(200, "Directory fetched", {
+        directory: resource,
+        files,
+      }),
+    );
   }
 });
 
@@ -325,5 +293,5 @@ export {
   getAllSharedUsers,
   createShareLink,
   revokeShareLink,
-  acceessViaLink
+  acceessViaLink,
 };

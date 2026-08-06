@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import { rm } from "node:fs/promises";
 import Directory from "../models/directory.model.js";
 import File from "../models/file.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -12,7 +12,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import path from "node:path";
 import getAccess from "../utils/getAccess.js";
 import { updateParentDirectorySize } from "./file.controller.js";
-import { deleteResources } from "../config/s3.js";
+import { deleteResources } from "../services/s3.service.js";
 
 
 const getDirectory = asyncHandler(async (req, res) => {
@@ -28,7 +28,7 @@ const getDirectory = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, dirData);
 
   if (!access) {
-    throw new NotFoundError("Directory not found");
+    throw new ForbiddenError("Directory access denied");
   }
 
   const files = await File.find({ parentDirId: dirData._id }).lean();
@@ -67,14 +67,14 @@ const createDirectory = asyncHandler(async (req, res) => {
   const access = getAccess(req.user._id, parentDir);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("Access denied");
+    throw new ForbiddenError("Access denied");
   }
 
   const documentId = new mongoose.Types.ObjectId();
 
   await Directory.create({
     _id: documentId,
-    userId: user._id,
+    userId: parentDir.userId,
     name: dirName,
     parentDirId,
     path: [...dirPath, documentId],
@@ -102,11 +102,11 @@ const updateDirectoryName = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, dirData);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("you cant access this resource");
+    throw new ForbiddenError("you cant access this resource");
   }
 
   const updated = await Directory.findOneAndUpdate(
-    { _id: dirId, userId: user._id },
+    { _id: dirId,},
     { name: newDirName },
     { returnDocument: "after" },
   );
@@ -132,7 +132,7 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, dirData);
 
   if (access !== "owner" && access !== "editor") {
-    throw new UnauthorizedError("Access denied");
+    throw new ForbiddenError("Access denied");
   }
 
   const { files, allDirIds } = await getDirRecursively(dirData._id);
@@ -208,7 +208,7 @@ const getBreadCrumb = asyncHandler(async (req, res) => {
   const access = getAccess(req.user?._id, dir);
 
   if (!access) {
-    throw new UnauthorizedError("You can't access this resource");
+    throw new ForbiddenError("You can't access this resource");
   }
 
   const dirPathIds = dir.path ?? [];

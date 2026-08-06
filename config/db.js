@@ -12,10 +12,5 @@ async function connect() {
     }
 }
 
-process.on("SIGINT",async ()=> {
-    console.log("connection closed")
-    await mongoose.disconnect()
-    process.exit(0)
-})
 
 export default connect;

@@ -17,24 +17,12 @@ import path from "node:path";
 import { registerSchema } from "../validators/authSchema.validator.js";
 import redis from "../config/redis.js";
 
-import {loginSchema} from "../validators/authSchema.validator.js";
-
-function safeStoragePath(req, part) {
-  const base = path.resolve(req.app.locals.storageBase);
-  const target = path.resolve(base, part);
-
-  if (base !== target && !target.startsWith(base + path.sep)) {
-    throw new ApiError(400, "Invalid file path");
-  }
-
-  return target;
-}
+import { loginSchema } from "../validators/authSchema.validator.js";
 
 const userRegister = asyncHandler(async (req, res) => {
- 
-  const {success,data,error} = registerSchema.safeParse(req.body);
-  if(!success){
-    throw new ValidationError("input all fields",error.flatten().fieldErrors);
+  const { success, data, error } = registerSchema.safeParse(req.body);
+  if (!success) {
+    throw new ValidationError("input all fields", error.flatten().fieldErrors);
   }
   const { email, password, name, otp } = data;
 
@@ -74,7 +62,7 @@ const userRegister = asyncHandler(async (req, res) => {
           parentDirId: null,
           name: `root-${email}`,
           userId,
-          path:[rootDirId]
+          path: [rootDirId],
         },
       ],
       { session },
@@ -110,12 +98,10 @@ const userRegister = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-
-  const {success,data} = loginSchema.safeParse(req.body);
-  if(!success){
+  const { success, data } = loginSchema.safeParse(req.body);
+  if (!success) {
     throw new ValidationError("input credientials");
   }
-
 
   const { email, password } = data;
 
@@ -152,12 +138,18 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const getNameAndEmail = asyncHandler(async (req, res) => {
+ 
+  const rootDir = await Directory.findById(req.user.rootDirId)
+
+
   return res.status(200).json(
     new ApiResponse(200, "User fetched", {
       name: req.user.name,
       email: req.user.email,
       profile: req.user.picture,
       role: req.user.role,
+      maxStorageInBytes: req.user. maxStorageInBytes,
+      usedStorageInBytes: rootDir.size,
     }),
   );
 });
@@ -225,132 +217,12 @@ const softDeleteUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "User deleted successfully"));
 });
 
-const hardDeleteUser = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const session = await Session.deleteMany({ userId });
-  const user = await User.deleteOne({ _id: userId });
-  const files = await File.find({ userId }, " extension ").lean();
 
-  if (files.length > 0) {
-    console.log(files);
-    for (let { _id, extension } of files || []) {
-      const filePath = safeStoragePath(req, _id.toString());
-      console.log(filePath, extension);
-      await rm(`${filePath}${extension}`, { force: true });
-    }
-    await File.deleteMany({ userId });
-  }
-
-  const directories = await Directory.deleteMany({ userId });
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "User deleted successfully"));
-});
-
-const changeRole = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const { role } = req.body;
-
-  if (req.user._id.toString() === userId) {
-    throw new UnauthorizedError("Users cannot change their own role");
-  }
-
-  if (role === "Owner") {
-    throw new UnauthorizedError("Cannot assign Owner role");
-  }
-
-  if (req.user.role === "Owner") {
-    if (!["Admin", "Manager"].includes(role)) {
-      throw new UnauthorizedError(
-        "Only owner can change roles to Admin or Manager",
-      );
-    }
-  } else if (req.user.role === "Admin") {
-    if (role !== "Manager") {
-      throw new UnauthorizedError("Only Admin can change roles to Manager");
-    }
-  } else {
-    throw new UnauthorizedError("Only owner can change roles");
-  }
-
-  const user = await User.updateOne(
-    {
-      _id: userId,
-    },
-    {
-      $set: {
-        role,
-      },
-    },
-  );
-  console.log(user);
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "User role updated successfully"));
-});
-
-const viewFiles = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const files = await File.find({ userId }).lean();
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "User files fetched", files));
-});
-
-const viewDirectories = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const directories = await Directory.find({ userId }).lean();
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "User directories fetched", directories));
-});
-
-const viewSingleFile = asyncHandler(async (req, res, next) => {
-  const { userId, fileId } = req.params;
-
-  const file = await File.findOne({ _id: fileId, userId }).lean();
-
-  if (!file) {
-    throw new NotFoundError("File not found");
-  }
-
-  const filePath = safeStoragePath(req, fileId);
-
-  return res.sendFile(`${filePath}${file.extension}`, (err) => {
-    if (!res.headersSent && err) {
-      next(new NotFoundError("File not found"));
-    }
-  });
-});
-
-const deleteFile = asyncHandler(async (req, res) => {
-  const { userId, fileId } = req.params;
-  const file = await File.findOne({ _id: fileId, userId });
-  if (!file) throw new NotFoundError("File not found");
-
-  const filePath = safeStoragePath(req, fileId);
-  await rm(`${filePath}${file.extension}`, { force: true });
-  await File.deleteOne({ _id: fileId });
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "File deleted successfully"));
-});
 
 export {
   userRegister,
   login,
   getNameAndEmail,
   logout,
-  logoutAll,
-  getAllUsers,
-  adminLogout,
   softDeleteUser,
-  hardDeleteUser,
-  changeRole,
-  viewFiles,
-  viewDirectories,
-  viewSingleFile,
-  deleteFile,
 };

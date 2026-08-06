@@ -1,8 +1,8 @@
-import { sendOTPEmail } from "../utils/nodemailer.js";
+import { sendOTPEmail } from "../services/email.service.js ";
 import { UnauthorizedError, ValidationError } from "../utils/errors.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { verifyToken } from "../utils/googleAuth.js";
+import { verifyToken } from "../services/googleAuth.service.js";
 import User from "../models/user.model.js";
 import Directory from "../models/directory.model.js";
 import Session from "../models/session.model.js";
@@ -24,7 +24,7 @@ const sendOTP = asyncHandler(async (req, res) => {
   }
 
   const result = await sendOTPEmail(email);
-  return res.status(200).json(new ApiResponse(200, result));
+  return res.status(200).json(new ApiResponse(200,"sent successfully",result));
 });
 
 const verifyOTP = asyncHandler(async (req, res) => {
@@ -36,20 +36,12 @@ const verifyOTP = asyncHandler(async (req, res) => {
 
   const { email, otp } = data;
 
-  if (!email || email.trim() === "") {
-    throw new ValidationError("Email is required");
-  }
-  if (!otp || otp.trim() === "") {
-    throw new ValidationError("OTP is required");
-  }
 
   const otpRecord = await redis.get(`otp:${email}`);
 
   if (!otpRecord) {
     throw new ValidationError("Invalid OTP");
   }
-
-  console.log("OTP from Redis:", otpRecord, "Provided OTP:", otp);
 
   if (otpRecord !== otp) {
     throw new ValidationError("Invalid OTP");
@@ -159,8 +151,10 @@ const gitHubCallback = asyncHandler(async (req, res) => {
   );
   const tokenData = await tokenResponse.json();
 
+  
+
   if (tokenData.error) {
-    throw new UnauthorizedError("GitHub authentication failed");
+    throw new UnAuthorizedError("GitHub authentication failed");
   }
   const accessToken = tokenData.access_token;
 
@@ -238,8 +232,8 @@ const gitHubCallback = asyncHandler(async (req, res) => {
   res.cookie("sessionId", sessionId, {
     signed: true,
     httpOnly: true,
-    maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-  });
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7 * 1000,   });
   return res.redirect(process.env.CLIENT_URL);
 });
 

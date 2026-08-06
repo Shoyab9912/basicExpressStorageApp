@@ -37,6 +37,8 @@ const fileSchema = new Schema({
     permission: { type: String, enum: ["viewer", "editor"] },
     expiresAt: { type: Date, default: null },
   },
+},{
+  timestamps:true,
 });
 fileSchema.index({ parentDirId: 1 ,userId: 1});
 const File = model("File", fileSchema);
