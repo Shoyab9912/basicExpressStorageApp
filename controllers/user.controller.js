@@ -21,10 +21,14 @@ import { loginSchema } from "../validators/authSchema.validator.js";
 
 const userRegister = asyncHandler(async (req, res) => {
   const { success, data, error } = registerSchema.safeParse(req.body);
+  console.log(req.body,data,"data received in userRegister--------------------------------------------")
+
   if (!success) {
     throw new ValidationError("input all fields", error.flatten().fieldErrors);
   }
   const { email, password, name, otp } = data;
+
+  console.log(req.body,data,"data received in userRegister--------------------------------------------")
 
   if ([email, password, name, otp].some((f) => !f || f.trim() === "")) {
     throw new ValidationError("All fields are required");
@@ -40,7 +44,7 @@ const userRegister = asyncHandler(async (req, res) => {
     throw new NotFoundError("Invalid OTP or OTP has expired");
   }
 
-  await redis.del(`otp:${email}`);
+ 
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -82,6 +86,7 @@ const userRegister = asyncHandler(async (req, res) => {
     );
 
     await session.commitTransaction();
+     await redis.del(`otp:${email}`);
 
     return res
       .status(201)

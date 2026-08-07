@@ -11,7 +11,6 @@ import subscriptionRoutes from "./routes/subscription.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import healthRoutes from "./routes/health.route.js";
 import adminRoutes from "./routes/admin.route.js";
-import connectDb from "./config/db.js";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 
 const app = express();
@@ -46,14 +45,3 @@ app.use(errorHandler);
 
 export {app}
 
-connectDb()
-  .then(() => {
-    console.log("DB connection successful");
-    app.listen(process.env.PORT, () => {
-      console.log("Server is listening on port " + process.env.PORT);
-    });
-  })
-  .catch((err) => {
-    console.error("DB connection failed:", err);
-    process.exit(1);
-  });
