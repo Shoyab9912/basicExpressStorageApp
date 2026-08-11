@@ -194,25 +194,6 @@ const logoutAll = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
-const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().lean().select("name email picture role");
-  const userSessions = await Session.find({
-    userId: { $in: users.map((u) => u._id) },
-  }).lean();
-  const allSessions = new Set(userSessions.map((s) => s.userId.toString()));
-  const usersWithStatus = users.map((u) => {
-    return {
-      id: u._id,
-      name: u.name,
-      email: u.email,
-      isLoggedIn: allSessions.has(u._id.toString()),
-    };
-  });
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Users fetched", usersWithStatus));
-});
-
 const softDeleteUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const user = await User.findByIdAndUpdate(userId, { isDeleted: true });
