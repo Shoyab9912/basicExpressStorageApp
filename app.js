@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import path from "path";
 import cookieParser from "cookie-parser";
 import fileRoutes from "./routes/file.route.js";
 import directoryRoutes from "./routes/directory.route.js";
@@ -12,6 +11,7 @@ import webhookRoutes from "./routes/webhook.route.js";
 import healthRoutes from "./routes/health.route.js";
 import adminRoutes from "./routes/admin.route.js";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
+import { generalRateLimiter,authRateLimiter } from "./middlewares/ratelimit.middleware.js";
 
 const app = express();
 
@@ -24,8 +24,9 @@ app.use(
 app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(express.json());
 
+app.use("/api/v1",generalRateLimiter)
+app.use("/api/v1/auth", authRateLimiter,authRoutes);
 
-app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 
 app.use("/api/v1/directories", directoryRoutes);
@@ -37,8 +38,12 @@ app.use("/api/v1/subscriptions", subscriptionRoutes);
 
 app.use("/api/v1/webhooks", webhookRoutes);
 
-app.use("/api/v1/admin", adminRoutes);
+// Health check route
+
 app.use("/api/v1/health", healthRoutes);
+
+// Admin routes
+app.use("/api/v1/admin", adminRoutes);
 
 app.use(errorHandler);
 
