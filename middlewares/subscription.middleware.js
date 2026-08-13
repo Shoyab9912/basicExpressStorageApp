@@ -1,6 +1,6 @@
 import Subscription from "../models/subscription.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { ForbiddenError,BadRequestError } from "../utils/errors.js";
+import { NotFoundError,ForbiddenError,BadRequestError } from "../utils/errors.js";
 
 const loadSubscription = asyncHandler(async (req, res, next) => {
   req.subscription = await Subscription.findOne({
@@ -22,7 +22,7 @@ const writeAccess = asyncHandler(async (req, res, next) => {
     case "pending":
     case "active":
       return next();
-    case "pause":
+    case "paused":
       throw new ForbiddenError("Subscription is paused. Uploads are disabled.");
     case "halted":
       throw new ForbiddenError(

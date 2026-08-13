@@ -14,7 +14,6 @@ import getAccess from "../utils/getAccess.js";
 import { updateParentDirectorySize } from "./file.controller.js";
 import { deleteResources } from "../services/s3.service.js";
 
-
 const getDirectory = asyncHandler(async (req, res) => {
   const user = req.user;
   const id = req.params.id ?? user.rootDirId;
@@ -48,9 +47,7 @@ const getDirectory = asyncHandler(async (req, res) => {
 
 const createDirectory = asyncHandler(async (req, res) => {
   const user = req.user;
-  const parentDirId = req.params.parentDirId
-    ? new mongoose.Types.ObjectId(req.params.parentDirId)
-    : user.rootDirId;
+  const parentDirId = req.params.parentDirId ?? user.rootDirId;
 
   const dirName = req.headers.dirname || "newFolder";
 
@@ -106,7 +103,7 @@ const updateDirectoryName = asyncHandler(async (req, res) => {
   }
 
   const updated = await Directory.findOneAndUpdate(
-    { _id: dirId,},
+    { _id: dirId },
     { name: newDirName },
     { returnDocument: "after" },
   );
@@ -136,19 +133,15 @@ const deleteDirRecursively = asyncHandler(async (req, res) => {
   }
 
   const { files, allDirIds } = await getDirRecursively(dirData._id);
-  console.log(files,"---------------")
 
   if (files.length > 0) {
+    const keys = files.map(({ _id, extension }) => ({
+      Key: `${_id.toString()}${extension}`,
+    }));
+    await deleteResources(keys);
     await File.deleteMany({
-      _id: { $in: [...allDirIds, dirData._id] },
+      parentDirId: { $in: [...allDirIds, dirData._id] },
     });
-  
-    const keys = files.map(({_id,extension}) => ({
-      Key:`${_id.toString()}${extension}`
-    }))
-  
-    
-    await deleteResources(keys)
   }
 
   await Directory.deleteMany({
@@ -192,7 +185,6 @@ async function getDirRecursively(rootId) {
       extension: 1,
     },
   ).lean();
-  console.log("Files to delete:", files);
   return { files, allDirIds };
 }
 
@@ -230,7 +222,6 @@ const getBreadCrumb = asyncHandler(async (req, res) => {
     directoryMap.set(directory._id.toString(), directory);
   }
 
-
   const orderedDirectories = [];
 
   for (const id of dirPathIds) {
@@ -241,7 +232,9 @@ const getBreadCrumb = asyncHandler(async (req, res) => {
     }
   }
 
-  return res.status(200).json(new ApiResponse(200, "success", orderedDirectories));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "success", orderedDirectories));
 });
 
 export {

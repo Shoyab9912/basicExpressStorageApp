@@ -18,5 +18,9 @@ export const registerSchema = loginSchema.extend({
 
 export const sendOTPSchema = z.object({
   email: z.email({ message: "Invalid email address" }),
+});
+
+export const verifyOTPSchema = z.object({
+  email: z.email({ message: "Invalid email address" }),
   otp: z.string("OTP is required").regex(/^\d{4}$/),
 });

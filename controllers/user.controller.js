@@ -120,7 +120,7 @@ const login = asyncHandler(async (req, res) => {
     throw new UnauthorizedError("Invalid credentials");
   }
 
-  if (user.deleted) {
+  if (user.isDeleted) {
     throw new UnauthorizedError("User account has been deleted");
   }
 

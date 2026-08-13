@@ -16,6 +16,8 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { createGetSignedUrl } from "../services/s3.service.js";
 import getResourceByType from "../utils/getResourceByType.js";
+import { shareSchema } from "../validators/shareSchema.validator.js";
+
 
 const shareViaEmail = asyncHandler(async (req, res) => {
   const { resourceType, resourceId } = req.params;

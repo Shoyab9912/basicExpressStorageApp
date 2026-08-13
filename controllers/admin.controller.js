@@ -1,6 +1,6 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { UnauthorizedError, NotFoundError } from "../utils/errors.js";
+import { UnauthorizedError, NotFoundError,BadRequestError,ForbiddenError } from "../utils/errors.js";
 import User from "../models/user.model.js";
 import Session from "../models/session.model.js";
 import File from "../models/file.model.js";
@@ -11,7 +11,7 @@ import {
   deleteResource,
 } from "../services/s3.service.js";
 import { ROLES } from "../constants/roles.js";
-
+import { updateParentDirectorySize } from "./file.controller.js";
 
 const adminLogout = asyncHandler(async (req, res) => {
   const { userId } = req.params;
@@ -20,6 +20,8 @@ const adminLogout = asyncHandler(async (req, res) => {
   res.clearCookie("sessionId", {
     httpOnly: true,
     signed: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7,
   });
   return res.sendStatus(204);
 });
@@ -76,29 +78,20 @@ const hardDeleteUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "User deleted successfully"));
 });
 
-
-
 const changeRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
 
-  const validRoles = [
-    ROLES.ADMIN,
-    ROLES.MANAGER,
-    ROLES.USER,
-  ];
-
+  const validRoles = [ROLES.ADMIN, ROLES.MANAGER, ROLES.USER];
 
   if (!validRoles.includes(role)) {
     throw new BadRequestError("Invalid role");
   }
 
-
   if (req.user._id.toString() === userId) {
     throw new ForbiddenError("You cannot change your own role");
   }
 
-  
   if (role === ROLES.OWNER) {
     throw new ForbiddenError("Cannot assign Owner role");
   }
@@ -122,30 +115,27 @@ const changeRole = asyncHandler(async (req, res) => {
       break;
 
     case ROLES.ADMIN:
-
       if (targetUser.role === ROLES.ADMIN) {
         throw new ForbiddenError("Cannot modify another Admin");
       }
 
       if (![ROLES.MANAGER, ROLES.USER].includes(role)) {
-        throw new ForbiddenError(
-          "Admin can only assign Manager or User roles"
-        );
+        throw new ForbiddenError("Admin can only assign Manager or User roles");
       }
       break;
 
     default:
       throw new ForbiddenError(
-        "You don't have permission to change user roles"
+        "You don't have permission to change user roles",
       );
   }
 
   targetUser.role = role;
   await targetUser.save();
 
-  return res.status(200).json(
-    new ApiResponse(200, "User role updated successfully")
-  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "User role updated successfully"));
 });
 
 const viewFiles = asyncHandler(async (req, res) => {
@@ -165,25 +155,28 @@ const viewDirectories = asyncHandler(async (req, res) => {
 });
 
 const viewSingleFile = asyncHandler(async (req, res, next) => {
-  const {  fileId } = req.params;
-
-  const file = await File.findOne({ _id: fileId}).lean();
+  const file = await File.findOne({
+    _id: req.params.fileId,
+  }).lean();
 
   if (!file) {
     throw new NotFoundError("File not found");
   }
 
-  const url = await createGetSignedUrl({ key: `${id}${file.extension}` });
+  const url = await createGetSignedUrl({
+    key: `${file._id.toString()}${file.extension}`,
+  });
   return res.redirect(url);
 });
 
 const deleteFile = asyncHandler(async (req, res) => {
   const { userId, fileId } = req.params;
-  const file = await File.findOne({ _id: fileId, userId });
+  const file = await File.findOne({ _id: fileId, userId }).lean();
   if (!file) throw new NotFoundError("File not found");
 
-  await File.deleteOne({ _id: fileId });
   await deleteResource(`${file._id.toString()}${file.extension}`);
+  await File.deleteOne({ _id: fileId });
+  await updateParentDirectorySize(file.parentDirId, -file.size);
   return res
     .status(200)
     .json(new ApiResponse(200, "File deleted successfully"));

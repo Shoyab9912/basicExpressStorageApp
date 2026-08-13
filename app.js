@@ -22,7 +22,10 @@ app.use(
   }),
 );
 app.use(cookieParser(process.env.COOKIE_SECRET));
+
+
 app.use(express.json());
+
 
 app.use("/api/v1",generalRateLimiter)
 app.use("/api/v1/auth", authRateLimiter,authRoutes);

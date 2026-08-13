@@ -1,4 +1,4 @@
-import { model, Schema, trusted } from "mongoose";
+import { model, Schema } from "mongoose";
 
 const subscriptionSchema = new Schema(
   {
@@ -21,7 +21,16 @@ const subscriptionSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["created", "active", "pending", "halted", "paused", "cancelled","expired"],
+      enum: [
+        "created",
+        "active",
+        "pending",
+        "halted",
+        "paused",
+        "cancelled",
+        "expired",
+        "authenticated",
+      ],
       default: "created",
     },
     pausedAt: {
@@ -41,6 +50,10 @@ const subscriptionSchema = new Schema(
       default: [],
     },
     cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    lastChargedAt: {
       type: Date,
       default: null,
     },

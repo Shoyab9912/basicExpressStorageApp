@@ -22,13 +22,12 @@ const getPlans = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Plans fetched successfully", plans));
 });
 
+
 const createSubscription = asyncHandler(async (req, res) => {
   const { planId } = req.body;
 
-  console.log("Received planId:", planId);
-
-  if (!PLANS[planId]) {
-    throw new BadRequestError("Invalid plan selected");
+  if (!planId || !PLANS[planId]) {
+    throw new BadRequestError("Invalid plan selected.");
   }
 
   const existingSubscription = await Subscription.findOne({
@@ -36,29 +35,63 @@ const createSubscription = asyncHandler(async (req, res) => {
   });
 
   if (existingSubscription) {
-    throw new BadRequestError("You already have a subscription.");
+    switch (existingSubscription.status) {
+      case "active":
+      case "pending":
+      case "paused":
+      case "halted":
+        throw new BadRequestError(
+          "You already have an existing subscription.",
+        );
+
+      case "created":
+      case "cancelled":
+      case "expired":
+        // Allow creating a new subscription.
+        break;
+
+      default:
+        throw new BadRequestError(
+          `Cannot create a subscription while current subscription is ${existingSubscription.status}.`,
+        );
+    }
   }
 
-  const subscription = await instance.subscriptions.create({
+  const razorpaySubscription = await instance.subscriptions.create({
     plan_id: planId,
     total_count: 12,
     notes: {
-      userId: req.user._id,
+      userId: req.user._id.toString(),
     },
   });
 
-  const newSubscription = new Subscription({
-    userId: req.user._id,
-    subscriptionId: subscription.id,
-    planId: req.body.planId,
-    status: subscription.status,
-  });
+  if (existingSubscription) {
+    existingSubscription.subscriptionId = razorpaySubscription.id;
+    existingSubscription.planId = planId;
+    existingSubscription.status = razorpaySubscription.status;
 
-  await newSubscription.save();
+    // Clear lifecycle data from the previous subscription.
+    existingSubscription.pausedAt = null;
+    existingSubscription.resumedAt = null;
+    existingSubscription.cancelledAt = null;
+    existingSubscription.gracePeriodEndsAt = null;
+
+    // Events belong to the old Razorpay subscription.
+    existingSubscription.processedEventIds = [];
+
+    await existingSubscription.save();
+  } else {
+    await Subscription.create({
+      userId: req.user._id,
+      subscriptionId: razorpaySubscription.id,
+      planId,
+      status: razorpaySubscription.status,
+    });
+  }
 
   return res.status(201).json(
-    new ApiResponse(201, "Subscription created successfully", {
-      subscriptionId: subscription.id,
+    new ApiResponse(201, "Subscription created successfully.", {
+      subscriptionId: razorpaySubscription.id,
     }),
   );
 });
@@ -113,11 +146,10 @@ const cancelSubscription = asyncHandler(async (req, res) => {
 });
 
 const changePlan = asyncHandler(async (req, res) => {
-  console.log(Object.keys(instance.subscriptions));
   const subscription = req.subscription;
   const { planId } = req.body;
 
-  console.log("Received planId for change:", planId);
+  
 
   if (!planId || !PLANS[planId]) {
     throw new BadRequestError("Invalid plan selected");
@@ -156,7 +188,7 @@ const changePlan = asyncHandler(async (req, res) => {
     return res
       .status(200)
       .json(new ApiResponse(200, "Plan change requested.", response));
-  } catch (error) {
+  } catch (err) {
     if (
       err.statusCode === 400 &&
       err.error?.code === "BAD_REQUEST_ERROR" &&
@@ -167,6 +199,7 @@ const changePlan = asyncHandler(async (req, res) => {
         "This subscription cannot be changed. Please cancel your current subscription and create a new one.",
       );
     }
+    throw err;
   }
 });
 

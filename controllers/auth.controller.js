@@ -8,27 +8,24 @@ import Directory from "../models/directory.model.js";
 import Session from "../models/session.model.js";
 import mongoose from "mongoose";
 import redis from "../config/redis.js";
-import { sendOTPSchema } from "../validators/authSchema.validator.js";
+import {
+  sendOTPSchema,
+  verifyOTPSchema,
+} from "../validators/authSchema.validator.js";
 
 const sendOTP = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const { success, data, error } = sendOTPSchema.safeParse(req.body);
 
-  if (
-    !email ||
-    email.trim() === "" ||
-    !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)
-  ) {
-    throw new ValidationError("Email is required", {
-      email: ["Email is required or invalid format"],
-    });
+  if (!success) {
+    throw new ValidationError("Invalid email", error.flatten().fieldErrors);
   }
 
-  const result = await sendOTPEmail(email);
+  const result = await sendOTPEmail(data.email);
   return res.status(200).json(new ApiResponse(200,"sent successfully",result));
 });
 
 const verifyOTP = asyncHandler(async (req, res) => {
-  const { success, data, error } = sendOTPSchema.safeParse(req.body);
+  const { success, data, error } = verifyOTPSchema.safeParse(req.body);
 
   if (!success) {
     throw new ValidationError("input all fields", error.flatten().fieldErrors);
@@ -154,7 +151,7 @@ const gitHubCallback = asyncHandler(async (req, res) => {
   
 
   if (tokenData.error) {
-    throw new UnAuthorizedError("GitHub authentication failed");
+    throw new UnauthorizedError("GitHub authentication failed");
   }
   const accessToken = tokenData.access_token;
 
