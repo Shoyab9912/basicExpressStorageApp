@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  logoutAll,
+  adminLogoutAll,
   getAllUsers,
   adminLogout,
   hardDeleteUser,
@@ -28,7 +28,7 @@ router.get(
 
 
 
-router.post("/user/logout-all",checkRole( ROLES.ADMIN, ROLES.OWNER), logoutAll);
+router.post("/user/logout-all",checkRole( ROLES.ADMIN, ROLES.OWNER), adminLogoutAll);
 
 
 router.get(

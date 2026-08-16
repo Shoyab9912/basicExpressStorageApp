@@ -26,13 +26,9 @@ const adminLogout = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
-const logoutAll = asyncHandler(async (req, res) => {
-  await Session.deleteMany({ userId: req.user._id });
-  res.clearCookie("sessionId", {
-    httpOnly: true,
-    signed: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
+const adminLogoutAll = asyncHandler(async (req, res) => {
+  await Session.deleteMany({
+    userId: { $ne: req.user._id },
   });
   return res.sendStatus(204);
 });
@@ -183,7 +179,7 @@ const deleteFile = asyncHandler(async (req, res) => {
 });
 
 export {
-  logoutAll,
+  adminLogoutAll,
   getAllUsers,
   adminLogout,
   hardDeleteUser,
