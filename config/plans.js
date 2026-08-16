@@ -1,10 +1,10 @@
 
 export const PLANS = {
   [process.env.RZP_BASIC_MONTHLY]: {
-    storageQuotaBytes: 3 * 1024 ** 3,
+    storageQuotaBytes: 2 * 1024 ** 3,
   },
   [process.env.RZP_BASIC_YEARLY]: {
-    storageQuotaBytes: 3 * 1024 ** 3,
+    storageQuotaBytes: 2 * 1024 ** 3,
   },
   [process.env.RZP_PRO_MONTHLY]: {
     storageQuotaBytes: 5 * 1024 ** 3,
