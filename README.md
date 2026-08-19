@@ -108,14 +108,6 @@ A backend-only file storage service built with Node.js, Express, and MongoDB. Su
 | GET | `/health` | Health check |
 | POST | `/webhooks/razorpay` | Razorpay webhook (server-to-server, not a client route) |
 
-## API Testing
-
-A Postman collection and environment are included in the `/postman` folder.
-
-1. Import both files into Postman
-2. Select the "Cloud File Storage" environment
-3. Set `base_url` if different from the default (`http://localhost:<PORT>/api/v1`)
-4. Auth flow (Send OTP → Verify OTP → Register/Login) is tested and working
 
 ## Setup
 
@@ -123,7 +115,6 @@ A Postman collection and environment are included in the `/postman` folder.
 git clone <repo-url>
 cd cloud-file-storage
 npm install
-cp .env.example .env   # fill in the values described below
 npm run dev
 ```
 
