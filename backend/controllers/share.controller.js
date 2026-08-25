@@ -40,7 +40,7 @@ const shareViaEmail = asyncHandler(async (req, res) => {
 
   const role = getAccess(req.user?._id, sharedResource);
 
-  if (!role || role == "viewer") {
+  if (role !== "owner") {
     throw new ForbiddenError("you cant access this resource");
   }
 
@@ -203,7 +203,7 @@ const createShareLink = asyncHandler(async (req, res) => {
 
   const access = getAccess(req.user._id, resource);
 
-  if (!access || access === "viewer") {
+  if (access !== "owner") {
     throw new ForbiddenError("forbidden to access");
   }
 
@@ -220,7 +220,7 @@ const createShareLink = asyncHandler(async (req, res) => {
   await resource.save();
   return res.status(200).json(
     new ApiResponse(200, "share link generated ", {
-      link: `${process.env.BASEUURL}/share/acess/${token}`,
+      link: `${process.env.BASEURL}/share/acess/${token}`,
       expiresAt,
     }),
   );
