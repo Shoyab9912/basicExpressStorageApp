@@ -1,20 +1,38 @@
 const getAccess = (userId, resource, token = null) => {
-  if (resource.userId.equals(userId)) return "owner";
 
-  const res = resource.sharedWith.find((r) => r.userId.equals(userId));
 
-  if (res) {
-    return res.permission;
+  if (userId && resource.userId.equals(userId)) {
+    return "owner";
   }
 
-  if (token && res.shareLink?.token === token) {
-    if(res.shareLink.expiresAt < Date.now() ) {
-        return null
+
+  if (userId) {
+    const res = resource.sharedWith.find(
+      (r) => r.userId.equals(userId)
+    );
+
+    if (res) {
+      return res.permission;
     }
-    return res.shareLink.permission
+  }
+
+  if (token && resource.shareLink?.token === token) {
+    if (
+      resource.shareLink.expiresAt &&
+      resource.shareLink.expiresAt < new Date()
+    ) {
+      return null;
+    }
+
+    return resource.shareLink.permission;
   }
 
   return null;
 };
 
 export default getAccess;
+
+
+
+
+
