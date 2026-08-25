@@ -18,8 +18,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ubuntu/storageApp
-            git pull
-            cd backend
-            npm ci 
-            pm2 reload storageApp
+             export NVM_DIR="$HOME/.nvm"
+             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+             cd /home/ubuntu/storageApp
+             git pull
+             cd backend
+             npm ci 
+             pm2 reload storageApp
