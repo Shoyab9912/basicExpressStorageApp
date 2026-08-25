@@ -19,15 +19,21 @@ const writeAccess = asyncHandler(async (req, res, next) => {
 
   switch (subscription.status) {
     case "created":
+    case "authenticated":
     case "pending":
     case "active":
       return next();
+
     case "paused":
-      throw new ForbiddenError("Subscription is paused. Uploads are disabled.");
+      throw new ForbiddenError(
+        "Subscription is paused. Write operations are disabled.",
+      );
+
     case "halted":
       throw new ForbiddenError(
         "Subscription is halted due to payment failure.",
       );
+
     case "cancelled":
       if (
         subscription.gracePeriodEndsAt &&
@@ -35,11 +41,23 @@ const writeAccess = asyncHandler(async (req, res, next) => {
       ) {
         return next();
       }
-      throw new ForbiddenError("Subscription grace period has expired.");
+
+      throw new ForbiddenError(
+        "Subscription grace period has expired.",
+      );
+
+    case "expired":
+      throw new ForbiddenError(
+        "Subscription has expired. Please renew your plan.",
+      );
+
     default:
-      throw new ForbiddenError("Write operations are not allowed.");
+      throw new ForbiddenError(
+        "Write operations are not allowed for this subscription.",
+      );
   }
 });
+
 
 const checkSubscriptionStatus = (...allowedStatuses) =>
   asyncHandler(async (req, res, next) => {

@@ -172,27 +172,9 @@ const logout = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
-const adminLogout = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
 
-  await Session.deleteMany({ userId });
-  res.clearCookie("sessionId", {
-    httpOnly: true,
-    signed: true,
-  });
-  return res.sendStatus(204);
-});
 
-const logoutAll = asyncHandler(async (req, res) => {
-  await Session.deleteMany({ userId: req.user._id });
-  res.clearCookie("sessionId", {
-    httpOnly: true,
-    signed: true,
-    sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  });
-  return res.sendStatus(204);
-});
+
 
 const softDeleteUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;

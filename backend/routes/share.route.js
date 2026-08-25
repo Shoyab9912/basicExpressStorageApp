@@ -27,7 +27,7 @@ router
   .delete(revokeShareLink);
 router
   .route("/:resourceType/:resourceId/:userId")
-  .post(revokeAccessViaEmail)
+  .delete(revokeAccessViaEmail)
   .patch(updatePermission);
 router.route("/:token").get(acceessViaLink);
 
