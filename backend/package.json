@@ -4,8 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node --env-file=.env server",
-    "dev": "node --env-file=.env --watch server.js"
+    "start": "node  server.js",
+    "dev": "node  --watch server.js"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "google-auth-library": "^10.6.2",
@@ -24,7 +25,7 @@
     "ioredis": "^5.10.1",
     "mongoose": "^9.2.1",
     "node-cron": "^4.6.0",
-    "nodemailer": "^8.0.2",
+    "nodemailer": "^9.0.5",
     "npm": "^11.12.1",
     "razorpay": "^2.9.8",
     "zod": "^4.4.3"
