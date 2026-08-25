@@ -25,11 +25,14 @@ import {
 
 export async function updateParentDirectorySize(parentId, sizeChange) {
   while (parentId) {
-    const parentdir = await Directory.findById(parentId);
-    if (!parentdir) break;
-    parentdir.size += sizeChange;
-    await parentdir.save();
-    parentId = parentdir.parentDirId;
+    const parentDir = await Directory.findByIdAndUpdate(
+      parentId,
+      { $inc: { size: sizeChange } }
+    );
+
+    if (!parentDir) break;
+
+    parentId = parentDir.parentDirId;
   }
 }
 
