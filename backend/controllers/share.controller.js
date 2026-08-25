@@ -44,7 +44,7 @@ const shareViaEmail = asyncHandler(async (req, res) => {
     throw new ForbiddenError("you cant access this resource");
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email, isDeleted:false });
 
   if (!user) {
     throw new NotFoundError("User not found");
